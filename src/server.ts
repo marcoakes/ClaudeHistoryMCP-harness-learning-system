@@ -12,6 +12,12 @@ import { handleFindSolutions } from "./tools/find-solutions.js";
 import { handleGetSessionSummary } from "./tools/get-session-summary.js";
 import { handleGetProjectContext } from "./tools/get-project-context.js";
 import { handleFindPatterns } from "./tools/find-patterns.js";
+import { handleIngestRun } from "./tools/harness/ingest-run.js";
+import { handleIngestReview } from "./tools/harness/ingest-review.js";
+import {
+  handleHarnessHealth,
+  handleGetTaskContext,
+} from "./tools/harness/harness-health.js";
 
 export function createServer(): {
   server: McpServer;
@@ -56,6 +62,88 @@ export function createServer(): {
     async (args) => {
       await ensureIndex();
       const result = handleSearchHistory(searchEngine, args);
+      return { content: [{ type: "text", text: result }] };
+    }
+  );
+
+  server.tool(
+    "ingest_run",
+    "Ingest an agent run transcript/path into repo-scoped harness learnings. Extracts failure/success/context patterns, clusters and scores them, and generates suggested skills/AGENTS.md suggestions.",
+    {
+      transcript_or_path: z.string().describe("Raw transcript text or path to transcript file"),
+      source: z
+        .enum(["claude_code", "codex_cli", "codex_app", "gitlab_review", "manual"])
+        .describe("Transcript source"),
+      contributor: z
+        .string()
+        .optional()
+        .describe("Contributor identity (human or agent id)"),
+      run_id: z.string().optional().describe("Optional run identifier"),
+      repo_root: z
+        .string()
+        .optional()
+        .describe("Optional repository root override"),
+    },
+    async (args) => {
+      const result = await handleIngestRun(args);
+      return { content: [{ type: "text", text: result }] };
+    }
+  );
+
+  server.tool(
+    "ingest_review",
+    "Ingest GitLab MR review feedback (payload text/json or path) as high-value weighted learnings.",
+    {
+      review_or_path: z
+        .string()
+        .describe("Raw review payload text/json or path to payload file"),
+      contributor: z
+        .string()
+        .optional()
+        .describe("Reviewer identity"),
+      run_id: z.string().optional().describe("Optional run identifier"),
+      repo_root: z
+        .string()
+        .optional()
+        .describe("Optional repository root override"),
+    },
+    async (args) => {
+      const result = await handleIngestReview(args);
+      return { content: [{ type: "text", text: result }] };
+    }
+  );
+
+  server.tool(
+    "harness_health",
+    "Report harness learning-system health: indexed learnings, pending suggestions, top failures/context gaps, and failure trend.",
+    {
+      repo_root: z
+        .string()
+        .optional()
+        .describe("Optional repository root override"),
+    },
+    async (args) => {
+      const result = await handleHarnessHealth(args);
+      return { content: [{ type: "text", text: result }] };
+    }
+  );
+
+  server.tool(
+    "get_task_context",
+    "Build an injection-ready markdown context block for a new task with top failure/success/guardrail learnings (token-budgeted).",
+    {
+      task: z.string().describe("Task description or ticket text"),
+      repo_root: z
+        .string()
+        .optional()
+        .describe("Optional repository root override"),
+      max_tokens: z
+        .number()
+        .optional()
+        .describe("Max token budget for context block (default: 2000)"),
+    },
+    async (args) => {
+      const result = await handleGetTaskContext(args);
       return { content: [{ type: "text", text: result }] };
     }
   );

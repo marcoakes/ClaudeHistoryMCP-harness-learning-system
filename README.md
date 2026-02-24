@@ -4,7 +4,7 @@ An MCP server that makes your Claude Code conversation history searchable and pr
 
 ## What it does
 
-Claude Code stores full conversation transcripts as JSONL files in `~/.claude/projects/`. This MCP server indexes them and provides 6 tools:
+Claude Code stores full conversation transcripts as JSONL files in `~/.claude/projects/`. This MCP server indexes them and provides 10 tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -14,6 +14,10 @@ Claude Code stores full conversation transcripts as JSONL files in `~/.claude/pr
 | `list_projects` | List all projects with session counts and dates |
 | `find_patterns` | Discover recurring topics, workflows, and issues |
 | `get_project_context` | Full project context (recent sessions, decisions, knowledge) |
+| `ingest_run` | Ingest repo-scoped agent run transcripts into `.harness/learnings` |
+| `ingest_review` | Ingest GitLab MR review feedback as weighted learnings |
+| `harness_health` | Harness dashboard: learnings, pending suggestions, trend |
+| `get_task_context` | Build a token-budgeted task-start injection block |
 
 ### Key features
 
@@ -23,6 +27,7 @@ Claude Code stores full conversation transcripts as JSONL files in `~/.claude/pr
 - **Proactive context**: Session-start hook injects relevant project history into new sessions
 - **Incremental indexing**: File watcher detects new/changed sessions and re-indexes automatically
 - **Fast**: Index build ~9s for 170 sessions, searches <200ms
+- **Harness learning mode**: repo-scoped `.harness/learnings/` storage for raw learnings, suggested skills, and AGENTS.md suggestion queue
 
 ## How it works
 
@@ -31,7 +36,7 @@ Claude Code stores full conversation transcripts as JSONL files in `~/.claude/pr
 │                  ClaudeHistoryMCP                     │
 ├──────────────┬───────────────┬───────────────────────┤
 │  MCP Server  │  /claude-history  │  SessionStart Hook │
-│  (6 tools)   │  Skill            │  (auto-context)    │
+│ (10 tools)   │  Skill            │  (auto-context)    │
 ├──────────────┴───────────────┴───────────────────────┤
 │              Hybrid Search Engine                     │
 │          BM25 (keywords) + TF-IDF (semantic)         │
@@ -114,6 +119,30 @@ User: "Have I dealt with this ECONNREFUSED error before?"
 Claude: [calls find_solutions with "ECONNREFUSED"]
 → Shows past solutions from your history
 ```
+
+### Harness tools (repo-scoped learning)
+
+These tools power the AI-DLC harness feedback loop:
+
+- `ingest_run(transcript_or_path, source, contributor?, run_id?, repo_root?)`
+  - `source`: `claude_code | codex_cli | codex_app | gitlab_review | manual`
+  - Extracts failure/success/context/guardrail patterns and updates clusters.
+- `ingest_review(review_or_path, contributor?, run_id?, repo_root?)`
+  - Ingests GitLab MR review corrections with higher weight.
+- `harness_health(repo_root?)`
+  - Returns totals, pending suggestions, top failure/context clusters, and failure trend.
+- `get_task_context(task, repo_root?, max_tokens?)`
+  - Returns a compact markdown context block (default `max_tokens=2000`) with:
+    - top failure patterns to avoid
+    - top successful patterns to follow
+    - relevant guardrails
+
+Harness artifacts are written under:
+
+- `.harness/learnings/raw/` (raw JSON data, gitignored by default)
+- `.harness/learnings/runs/` (raw ingested payloads, gitignored by default)
+- `.harness/learnings/suggested-skills/` (draft skill markdowns for review)
+- `.harness/learnings/agents-md-suggestions.md` (append-only AGENTS suggestions)
 
 ### Via the /claude-history skill
 
