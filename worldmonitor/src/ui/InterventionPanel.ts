@@ -10,6 +10,7 @@ export function renderInterventionPanel(el: HTMLElement, interventions: Interven
         <span class="priority-badge priority-medium">-${i.expectedRiskReduction}%</span>
       </div>
       <div class="meta">Owner: ${i.ownerRole} • Latency: ${i.latencyHours}h • Confidence: ${i.confidenceBand}</div>
+      <div class="meta">Cost: ${i.executionCost} units • Expected reduction: ${i.expectedRiskReduction}%</div>
       <div class="meta">Tradeoff: ${i.tradeoff}</div>
       <div class="window-row">
         <button type="button" class="window-btn" data-action="simulate-intervention" data-intervention-id="${i.id}">Simulate</button>

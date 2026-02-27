@@ -21,6 +21,7 @@ export interface InterventionCard {
   expectedRiskReduction: number;
   confidenceBand: string;
   latencyHours: number;
+  executionCost: number;
   tradeoff: string;
 }
 
@@ -29,6 +30,7 @@ export interface ThreatModelOutput {
   interventions: InterventionCard[];
   exposureAssessments: ExposureAssessment[];
   counterfactual?: CounterfactualResult;
+  portfolio?: PortfolioRecommendation;
 }
 
 export interface ExposureAssessment {
@@ -49,6 +51,15 @@ export interface CounterfactualResult {
   confidenceBand: string;
   latencyHours: number;
   note: string;
+}
+
+export interface PortfolioRecommendation {
+  interventionIds: string[];
+  titles: string[];
+  totalCost: number;
+  totalLatency: number;
+  totalRiskReduction: number;
+  rationale: string;
 }
 
 function categoryFromEvents(events: NewsItem[]): ThreatCategory {
@@ -77,6 +88,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 28,
         confidenceBand: 'medium-high',
         latencyHours: 6,
+        executionCost: 9,
         tradeoff: 'Operational friction on change windows',
       },
       {
@@ -87,6 +99,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 18,
         confidenceBand: 'medium',
         latencyHours: 3,
+        executionCost: 6,
         tradeoff: 'Higher analyst alert volume',
       },
     ];
@@ -102,6 +115,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 24,
         confidenceBand: 'medium',
         latencyHours: 12,
+        executionCost: 8,
         tradeoff: 'Higher transport and holding cost',
       },
       {
@@ -112,6 +126,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 16,
         confidenceBand: 'medium-high',
         latencyHours: 2,
+        executionCost: 4,
         tradeoff: 'Potential false activation overhead',
       },
     ];
@@ -127,6 +142,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 26,
         confidenceBand: 'medium-high',
         latencyHours: 8,
+        executionCost: 7,
         tradeoff: 'Resource displacement from BAU priorities',
       },
       {
@@ -137,6 +153,7 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
         expectedRiskReduction: 12,
         confidenceBand: 'medium',
         latencyHours: 1,
+        executionCost: 3,
         tradeoff: 'Potential noise if event de-escalates quickly',
       },
     ];
@@ -151,9 +168,43 @@ function interventionsFor(t: ThreatTrajectory): InterventionCard[] {
       expectedRiskReduction: 10,
       confidenceBand: 'medium',
       latencyHours: 2,
+      executionCost: 2,
       tradeoff: 'Analyst bandwidth load',
     },
   ];
+}
+
+function optimizePortfolio(interventions: InterventionCard[], budget: number, maxActions = 3): PortfolioRecommendation | undefined {
+  const n = interventions.length;
+  let best: PortfolioRecommendation | undefined;
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i; j < n; j++) {
+      for (let k = j; k < n; k++) {
+        const picked = [interventions[i], interventions[j], interventions[k]].filter(
+          (x, idx, arr) => arr.findIndex((a) => a.id === x.id) === idx
+        );
+        if (picked.length > maxActions) continue;
+        const cost = picked.reduce((s, p) => s + p.executionCost, 0);
+        if (cost > budget) continue;
+        const reduction = picked.reduce((s, p) => s + p.expectedRiskReduction, 0);
+        const latency = Math.max(...picked.map((p) => p.latencyHours));
+        const score = reduction * 2 - latency;
+        const bestScore = best ? best.totalRiskReduction * 2 - best.totalLatency : -Infinity;
+        if (score > bestScore) {
+          best = {
+            interventionIds: picked.map((p) => p.id),
+            titles: picked.map((p) => p.title),
+            totalCost: cost,
+            totalLatency: latency,
+            totalRiskReduction: reduction,
+            rationale: `Optimized for max projected reduction within budget ${budget} and max ${maxActions} actions.`,
+          };
+        }
+      }
+    }
+  }
+  return best;
 }
 
 export function runThreatModel(
@@ -163,7 +214,8 @@ export function runThreatModel(
   windowHours: number,
   referenceNow: number,
   exposures: ExposureAsset[] = [],
-  selectedInterventionId?: string
+  selectedInterventionId?: string,
+  portfolioBudget = 18
 ): ThreatModelOutput {
   const windowStart = referenceNow - windowHours * 60 * 60 * 1000;
   const halfStart = referenceNow - Math.max(1, Math.floor(windowHours / 2)) * 60 * 60 * 1000;
@@ -260,5 +312,7 @@ export function runThreatModel(
     }
   }
 
-  return { trajectories, interventions, exposureAssessments, counterfactual };
+  const portfolio = optimizePortfolio(interventions, portfolioBudget, 3);
+
+  return { trajectories, interventions, exposureAssessments, counterfactual, portfolio };
 }

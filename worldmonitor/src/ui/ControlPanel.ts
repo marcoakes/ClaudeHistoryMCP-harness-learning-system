@@ -47,7 +47,10 @@ export function renderControlPanel(
   referenceNow: number,
   playbackMinutesAgo: number,
   playbackRunning: boolean,
-  watchlist: string[]
+  watchlist: string[],
+  exposureProfileKey: string,
+  exposureProfileLabels: Record<string, string>,
+  portfolioBudget: number
 ): void {
   const rules = computeRuleStatus(cii, news, windowHours, referenceNow);
   const triggered = rules.filter((r) => r.hit).length;
@@ -70,6 +73,12 @@ export function renderControlPanel(
     .map((iso2) => cii.find((c) => c.iso2 === iso2)?.country || iso2)
     .slice(0, 8);
   const watchPills = watchNames.map((w) => `<span class="chip">${w}</span>`).join('');
+  const exposureButtons = Object.entries(exposureProfileLabels)
+    .map(
+      ([key, label]) =>
+        `<button type="button" class="window-btn ${key === exposureProfileKey ? 'window-btn-active' : ''}" data-action="set-exposure-profile" data-profile="${key}">${label}</button>`
+    )
+    .join('');
 
   el.innerHTML = `
     <div class="panel-title-row">
@@ -78,6 +87,9 @@ export function renderControlPanel(
     </div>
     <div class="window-row">
       ${buttons}
+    </div>
+    <div class="window-row">
+      ${exposureButtons}
     </div>
     <div class="timeline-row">
       <button type="button" class="window-btn" data-action="timeline-step" data-direction="back">-30m</button>
@@ -88,6 +100,10 @@ export function renderControlPanel(
       <span class="meta">Cursor: ${relativeLabel(referenceNow)}</span>
     </div>
     <input type="range" min="0" max="48" step="1" value="${Math.round(playbackMinutesAgo / 30)}" data-action="set-playback" class="timeline-slider" />
+    <div class="timeline-row">
+      <span class="meta">Portfolio budget: ${portfolioBudget}</span>
+      <input type="range" min="6" max="30" step="1" value="${portfolioBudget}" data-action="set-portfolio-budget" class="timeline-slider" />
+    </div>
     <div class="meta">Watchlist (${watchNames.length}): ${watchPills || 'none'}</div>
     <ul>${rows}</ul>
   `;

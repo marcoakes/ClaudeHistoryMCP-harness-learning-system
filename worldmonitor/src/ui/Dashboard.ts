@@ -21,9 +21,10 @@ import type { IncidentRecord, NewsItem } from '../types';
 import { runThreatModel } from '../model/ThreatModelEngine';
 import { renderTrajectoryPanel } from './TrajectoryPanel';
 import { renderInterventionPanel } from './InterventionPanel';
-import { EXPOSURE_PROFILE } from '../../data/exposure-profile';
+import { DEFAULT_EXPOSURE_PROFILE, EXPOSURE_PROFILES, EXPOSURE_PROFILE_LABELS } from '../../data/exposure-profile';
 import { renderExposurePanel } from './ExposurePanel';
 import { renderCounterfactualPanel } from './CounterfactualPanel';
+import { renderPortfolioPanel } from './PortfolioPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -34,6 +35,8 @@ export class Dashboard {
   private selectedCountryIso2?: string;
   private playbackMinutesAgo = 0;
   private playbackRunning = false;
+  private selectedExposureProfileKey = DEFAULT_EXPOSURE_PROFILE;
+  private portfolioBudget = 18;
   private watchlist: string[] = [];
   private incidents: IncidentRecord[] = [];
   private selectedInterventionId?: string;
@@ -95,6 +98,13 @@ export class Dashboard {
       this.renderSnapshot();
       return;
     }
+    if (actionEl.dataset.action === 'set-exposure-profile') {
+      const profile = actionEl.dataset.profile || '';
+      if (!EXPOSURE_PROFILES[profile]) return;
+      this.selectedExposureProfileKey = profile;
+      this.renderSnapshot();
+      return;
+    }
     if (actionEl.dataset.action === 'export-json') {
       this.exportSnapshot('json');
       return;
@@ -139,6 +149,13 @@ export class Dashboard {
       const step = Number(input.value || '0');
       this.playbackMinutesAgo = Math.max(0, Math.min(1440, step * 30));
       this.renderSnapshot();
+      return;
+    }
+    if (actionEl.dataset.action === 'set-portfolio-budget') {
+      const input = actionEl as HTMLInputElement;
+      const budget = Number(input.value || '18');
+      this.portfolioBudget = Math.max(6, Math.min(30, budget));
+      this.renderSnapshot();
     }
   };
 
@@ -162,6 +179,7 @@ export class Dashboard {
           <section id="incidents" class="panel panel-scroll"></section>
           <section id="trajectory" class="panel panel-scroll"></section>
           <section id="interventions" class="panel panel-scroll"></section>
+          <section id="portfolio" class="panel"></section>
           <section id="counterfactual" class="panel"></section>
           <section id="exposure" class="panel"></section>
           <section id="brief" class="panel"></section>
@@ -236,8 +254,9 @@ export class Dashboard {
       this.incidents,
       windowHours,
       referenceNow,
-      EXPOSURE_PROFILE,
-      this.selectedInterventionId
+      EXPOSURE_PROFILES[this.selectedExposureProfileKey] || [],
+      this.selectedInterventionId,
+      this.portfolioBudget
     );
     appStore.getState().setCii(cii);
     if (!this.selectedCountryIso2) {
@@ -252,7 +271,10 @@ export class Dashboard {
       referenceNow,
       this.playbackMinutesAgo,
       this.playbackRunning,
-      this.watchlist
+      this.watchlist,
+      this.selectedExposureProfileKey,
+      EXPOSURE_PROFILE_LABELS,
+      this.portfolioBudget
     );
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, snapshotNews, windowHours, referenceNow);
     renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, snapshotNews, windowHours, referenceNow);
@@ -261,6 +283,7 @@ export class Dashboard {
     renderIncidentQueue(this.root.querySelector<HTMLElement>('#incidents')!, this.incidents);
     renderTrajectoryPanel(this.root.querySelector<HTMLElement>('#trajectory')!, model.trajectories);
     renderInterventionPanel(this.root.querySelector<HTMLElement>('#interventions')!, model.interventions);
+    renderPortfolioPanel(this.root.querySelector<HTMLElement>('#portfolio')!, model.portfolio);
     renderCounterfactualPanel(this.root.querySelector<HTMLElement>('#counterfactual')!, model.counterfactual);
     renderExposurePanel(this.root.querySelector<HTMLElement>('#exposure')!, model.exposureAssessments);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
@@ -403,8 +426,9 @@ export class Dashboard {
       this.incidents,
       windowHours,
       referenceNow,
-      EXPOSURE_PROFILE,
-      this.selectedInterventionId
+      EXPOSURE_PROFILES[this.selectedExposureProfileKey] || [],
+      this.selectedInterventionId,
+      this.portfolioBudget
     );
     const ts = new Date(referenceNow).toISOString().replace(/[:.]/g, '-');
     const baseName = `worldmonitor-snapshot-${windowHours}h-${ts}`;
@@ -414,6 +438,8 @@ export class Dashboard {
         generatedAt: new Date().toISOString(),
         referenceNow: new Date(referenceNow).toISOString(),
         windowHours,
+        exposureProfile: this.selectedExposureProfileKey,
+        portfolioBudget: this.portfolioBudget,
         topCountries: cii.slice(0, 15),
         hypotheses,
         incidents: this.incidents,
@@ -421,6 +447,7 @@ export class Dashboard {
         interventions: model.interventions,
         exposureAssessments: model.exposureAssessments,
         counterfactual: model.counterfactual,
+        portfolio: model.portfolio,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -443,6 +470,8 @@ export class Dashboard {
       `- Generated: ${new Date().toISOString()}`,
       `- Reference Cursor: ${new Date(referenceNow).toISOString()}`,
       `- Analysis Window: ${windowHours}h`,
+      `- Exposure Profile: ${this.selectedExposureProfileKey}`,
+      `- Portfolio Budget: ${this.portfolioBudget}`,
       '',
       '## Top Country Instability',
       ...top.map((c, i) => `${i + 1}. ${c.country} — score ${c.score}, Δ24h ${c.delta24h >= 0 ? '+' : ''}${c.delta24h}`),
@@ -482,6 +511,14 @@ export class Dashboard {
             `baseline=${model.counterfactual.baselineRisk}, projected=${model.counterfactual.projectedRisk}, reduction=${model.counterfactual.riskReduction}, confidence=${model.counterfactual.confidenceBand}`,
           ]
         : ['No counterfactual selected']),
+      '',
+      '## Portfolio Recommendation',
+      ...(model.portfolio
+        ? [
+            `totalReduction=${model.portfolio.totalRiskReduction} totalCost=${model.portfolio.totalCost} totalLatency=${model.portfolio.totalLatency}h`,
+            ...model.portfolio.titles.map((t, idx) => `${idx + 1}. ${t}`),
+          ]
+        : ['No feasible portfolio in current budget']),
       '',
       '## Priority Events',
       ...events.map(
