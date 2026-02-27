@@ -13,6 +13,7 @@ import { renderFeedHealthPanel } from './FeedHealthPanel';
 import { renderCriticalRail } from './CriticalRail';
 import { renderScenarioPanel } from './ScenarioPanel';
 import { renderCountryDrilldown } from './CountryDrilldownPanel';
+import { renderControlPanel } from './ControlPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -29,13 +30,37 @@ export class Dashboard {
       this.refreshAll();
       return;
     }
+    if (actionEl.dataset.action === 'set-window') {
+      const hours = Number(actionEl.dataset.hours || '');
+      if (![1, 6, 24].includes(hours)) return;
+      appStore.getState().setAnalysisWindowHours(hours);
+      const state = appStore.getState();
+      renderControlPanel(this.root.querySelector<HTMLElement>('#controls')!, state.cii, state.news, state.analysisWindowHours);
+      renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, state.news, state.analysisWindowHours);
+      renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, state.news, state.analysisWindowHours);
+      renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, state.cii, state.news, this.selectedCountryIso2, state.analysisWindowHours);
+      renderCountryDrilldown(this.root.querySelector<HTMLElement>('#drilldown')!, state.cii, state.news, this.selectedCountryIso2, state.analysisWindowHours);
+      return;
+    }
     if (actionEl.dataset.action === 'country-drilldown') {
       const iso2 = actionEl.dataset.country;
       if (!iso2) return;
       this.selectedCountryIso2 = iso2;
       const state = appStore.getState();
-      renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, state.cii, state.news, this.selectedCountryIso2);
-      renderCountryDrilldown(this.root.querySelector<HTMLElement>('#drilldown')!, state.cii, state.news, this.selectedCountryIso2);
+      renderIntelPanel(
+        this.root.querySelector<HTMLElement>('#intel')!,
+        state.cii,
+        state.news,
+        this.selectedCountryIso2,
+        state.analysisWindowHours
+      );
+      renderCountryDrilldown(
+        this.root.querySelector<HTMLElement>('#drilldown')!,
+        state.cii,
+        state.news,
+        this.selectedCountryIso2,
+        state.analysisWindowHours
+      );
     }
   };
 
@@ -51,6 +76,7 @@ export class Dashboard {
           <div id="status" class="status"></div>
         </div>
         <div class="side-column">
+          <section id="controls" class="panel"></section>
           <section id="critical" class="panel panel-scroll"></section>
           <section id="scenario" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
@@ -84,6 +110,7 @@ export class Dashboard {
     const bundle = await fetchNewsBundle();
     const { news, feedHealth, fallbackActive } = bundle;
     const cii = computeCii(news);
+    const windowHours = appStore.getState().analysisWindowHours;
 
     appStore.getState().setNews(news);
     appStore.getState().setCii(cii);
@@ -96,11 +123,18 @@ export class Dashboard {
 
     this.mapView?.setEvents(news);
 
-    renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, news);
-    renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, news);
+    renderControlPanel(this.root.querySelector<HTMLElement>('#controls')!, cii, news, windowHours);
+    renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, news, windowHours);
+    renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, news, windowHours);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, news);
-    renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news, this.selectedCountryIso2);
-    renderCountryDrilldown(this.root.querySelector<HTMLElement>('#drilldown')!, cii, news, this.selectedCountryIso2);
+    renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news, this.selectedCountryIso2, windowHours);
+    renderCountryDrilldown(
+      this.root.querySelector<HTMLElement>('#drilldown')!,
+      cii,
+      news,
+      this.selectedCountryIso2,
+      windowHours
+    );
     renderFeedHealthPanel(this.root.querySelector<HTMLElement>('#health')!, feedHealth, fallbackActive);
     renderStatusBar(this.root.querySelector<HTMLElement>('#status')!, appStore.getState().lastRefresh);
 

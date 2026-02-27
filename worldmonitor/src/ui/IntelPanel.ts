@@ -2,10 +2,17 @@ import type { CiiEntry, NewsItem } from '../types';
 import { aggregateSignals } from '../intel/SignalAggregator';
 import { detectFocalPoints } from '../intel/FocalPoints';
 
-export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsItem[], selectedIso2?: string): void {
+export function renderIntelPanel(
+  el: HTMLElement,
+  cii: CiiEntry[],
+  news: NewsItem[],
+  selectedIso2?: string,
+  windowHours = 6
+): void {
   const now = Date.now();
-  const w1Start = now - 3 * 60 * 60 * 1000;
-  const w0Start = now - 6 * 60 * 60 * 1000;
+  const half = Math.max(1, Math.floor(windowHours / 2));
+  const w1Start = now - half * 60 * 60 * 1000;
+  const w0Start = now - half * 2 * 60 * 60 * 1000;
   const velocity = new Map<string, { prev: number; curr: number }>();
   const sourceSetByCountry = new Map<string, Set<string>>();
   const highByCountry = new Map<string, number>();
@@ -78,7 +85,7 @@ export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsIte
     <section>
       <h4>Country Instability Index</h4>
       <div class="cii-table-wrap">
-        <table><thead><tr><th>Country</th><th>Score</th><th>Δ24h</th><th>Velocity (3h)</th></tr></thead><tbody>${ciiRows}</tbody></table>
+        <table><thead><tr><th>Country</th><th>Score</th><th>Δ24h</th><th>Velocity (${half}h)</th></tr></thead><tbody>${ciiRows}</tbody></table>
       </div>
     </section>
     <section>

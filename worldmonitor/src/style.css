@@ -57,7 +57,7 @@ body,
 
 .side-column {
   display: grid;
-  grid-template-rows: minmax(120px, 15vh) minmax(120px, 15vh) auto minmax(130px, 18vh) minmax(160px, 22vh) minmax(220px, 1fr) minmax(150px, 22vh) minmax(150px, 22vh);
+  grid-template-rows: auto minmax(120px, 15vh) minmax(120px, 15vh) auto minmax(130px, 18vh) minmax(160px, 22vh) minmax(220px, 1fr) minmax(150px, 22vh) minmax(150px, 22vh);
   gap: 10px;
   min-height: 0;
 }
@@ -293,6 +293,53 @@ body,
 
 .retry-btn:hover {
   background: rgba(30, 64, 175, 0.4);
+}
+
+.window-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.window-btn {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.45);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.window-btn-active {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(30, 64, 175, 0.35);
+  color: #dbeafe;
+}
+
+.rule-item {
+  list-style: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.rule-hit {
+  background: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.rule-clear {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
 }
 
 .feed-health-wrap thead th {

@@ -6,15 +6,23 @@ function relativeAge(ts: number): string {
   return `${Math.round(mins / 60)}h`;
 }
 
-export function renderCountryDrilldown(el: HTMLElement, cii: CiiEntry[], news: NewsItem[], iso2?: string): void {
+export function renderCountryDrilldown(
+  el: HTMLElement,
+  cii: CiiEntry[],
+  news: NewsItem[],
+  iso2?: string,
+  windowHours = 6
+): void {
   const target = iso2 ? cii.find((c) => c.iso2 === iso2) : cii[0];
   if (!target) {
     el.innerHTML = '<h3>Country Drilldown</h3><p>No country selected.</p>';
     return;
   }
 
+  const windowStart = Date.now() - windowHours * 60 * 60 * 1000;
   const countryNews = news
     .filter((n) => (n.classification.countries || []).includes(target.iso2))
+    .filter((n) => n.publishedAt >= windowStart)
     .sort((a, b) => b.publishedAt - a.publishedAt);
 
   const uniqueSources = new Set(countryNews.map((n) => n.source)).size;
@@ -55,6 +63,7 @@ export function renderCountryDrilldown(el: HTMLElement, cii: CiiEntry[], news: N
     <section>
       <h4>${target.country}</h4>
       <div class="meta">Score ${target.score} • Δ24h ${target.delta24h >= 0 ? '+' : ''}${target.delta24h}</div>
+      <div class="meta">Window ${windowHours}h</div>
       <div class="meta">Sources ${uniqueSources} • High/Critical ${highCount}</div>
       <div class="meta">Dominant: ${topCats || 'none'}</div>
       <p class="meta">${recommendation}</p>

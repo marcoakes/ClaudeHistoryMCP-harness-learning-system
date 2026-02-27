@@ -7,8 +7,8 @@ function relativeAge(ts: number): string {
   return `${hrs}h`;
 }
 
-export function renderCriticalRail(el: HTMLElement, news: NewsItem[]): void {
-  const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+export function renderCriticalRail(el: HTMLElement, news: NewsItem[], windowHours = 6): void {
+  const sixHoursAgo = Date.now() - windowHours * 60 * 60 * 1000;
   const critical = news
     .filter((n) => (n.classification.severity === 'critical' || n.classification.severity === 'high') && n.publishedAt >= sixHoursAgo)
     .sort((a, b) => b.publishedAt - a.publishedAt)
@@ -29,6 +29,6 @@ export function renderCriticalRail(el: HTMLElement, news: NewsItem[]): void {
 
   el.innerHTML = `
     <h3>Critical Alerts</h3>
-    <ul>${rows.join('') || '<li>No critical/high alerts in last 6h</li>'}</ul>
+    <ul>${rows.join('') || `<li>No critical/high alerts in last ${windowHours}h</li>`}</ul>
   `;
 }

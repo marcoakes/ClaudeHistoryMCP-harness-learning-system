@@ -7,9 +7,9 @@ interface ScenarioCard {
   priority: 'high' | 'medium';
 }
 
-function generateScenarios(news: NewsItem[]): ScenarioCard[] {
+function generateScenarios(news: NewsItem[], windowHours: number): ScenarioCard[] {
   const now = Date.now();
-  const windowStart = now - 6 * 60 * 60 * 1000;
+  const windowStart = now - windowHours * 60 * 60 * 1000;
   const recent = news.filter((n) => n.publishedAt >= windowStart);
   const byCategory = aggregateSignals(recent).slice(0, 3);
   const highSev = recent.filter((n) => n.classification.severity === 'high' || n.classification.severity === 'critical');
@@ -23,7 +23,7 @@ function generateScenarios(news: NewsItem[]): ScenarioCard[] {
       .join(', ');
     return {
       title: `${sig.category[0].toUpperCase()}${sig.category.slice(1)} pressure`,
-      summary: `${sig.count} events in 6h${locations ? ` around ${locations}` : ''}. Monitor for spillover and second-order impacts.`,
+      summary: `${sig.count} events in ${windowHours}h${locations ? ` around ${locations}` : ''}. Monitor for spillover and second-order impacts.`,
       priority: sig.score >= 80 ? 'high' : 'medium',
     };
   });
@@ -31,7 +31,7 @@ function generateScenarios(news: NewsItem[]): ScenarioCard[] {
   if (highSev.length >= 5) {
     cards.unshift({
       title: 'Escalation cluster',
-      summary: `${highSev.length} high-severity alerts in 6h. Prioritize cross-region deconfliction and source verification.`,
+      summary: `${highSev.length} high-severity alerts in ${windowHours}h. Prioritize cross-region deconfliction and source verification.`,
       priority: 'high',
     });
   }
@@ -39,8 +39,8 @@ function generateScenarios(news: NewsItem[]): ScenarioCard[] {
   return cards.slice(0, 3);
 }
 
-export function renderScenarioPanel(el: HTMLElement, news: NewsItem[]): void {
-  const cards = generateScenarios(news);
+export function renderScenarioPanel(el: HTMLElement, news: NewsItem[], windowHours = 6): void {
+  const cards = generateScenarios(news, windowHours);
   const rows = cards
     .map(
       (c) => `<li class="scenario-card">
