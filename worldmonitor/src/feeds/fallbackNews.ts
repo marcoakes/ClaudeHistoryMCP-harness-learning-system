@@ -9,7 +9,6 @@ const FALLBACK_HEADLINES: Array<{
   sourceTier: number;
   region: string;
   title: string;
-  link: string;
   minutesAgo: number;
 }> = [
   {
@@ -17,7 +16,6 @@ const FALLBACK_HEADLINES: Array<{
     sourceTier: 2,
     region: 'europe',
     title: 'Ukraine air defense reports renewed missile activity near Kyiv',
-    link: 'https://example.com/fallback/ukraine-kyiv',
     minutesAgo: 7,
   },
   {
@@ -25,7 +23,6 @@ const FALLBACK_HEADLINES: Array<{
     sourceTier: 2,
     region: 'asia',
     title: 'North Korea announces new missile engine ground test',
-    link: 'https://example.com/fallback/north-korea-missile',
     minutesAgo: 19,
   },
   {
@@ -33,7 +30,6 @@ const FALLBACK_HEADLINES: Array<{
     sourceTier: 2,
     region: 'mena',
     title: 'Israel and Iran exchange warnings after regional airstrike claims',
-    link: 'https://example.com/fallback/israel-iran',
     minutesAgo: 31,
   },
   {
@@ -41,7 +37,6 @@ const FALLBACK_HEADLINES: Array<{
     sourceTier: 3,
     region: 'global',
     title: 'Global cyber breach campaign targets logistics infrastructure',
-    link: 'https://example.com/fallback/cyber-logistics',
     minutesAgo: 42,
   },
   {
@@ -49,7 +44,6 @@ const FALLBACK_HEADLINES: Array<{
     sourceTier: 3,
     region: 'asia',
     title: 'Taiwan defense ministry tracks elevated military aircraft activity',
-    link: 'https://example.com/fallback/taiwan-aircraft',
     minutesAgo: 55,
   },
 ];
@@ -60,12 +54,12 @@ export function buildFallbackNews(): NewsItem[] {
     return {
       id: `fallback::${item.title}`.slice(0, 220),
       title: item.title,
-      link: item.link,
       source: item.source,
       sourceTier: item.sourceTier,
       region: item.region,
       publishedAt: NOW - item.minutesAgo * 60 * 1000,
       summary: 'Fallback event used when live source ingestion is unavailable.',
+      synthetic: true,
       location: locateHeadline(item.title),
       classification,
     };

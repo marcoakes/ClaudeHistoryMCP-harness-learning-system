@@ -28,12 +28,13 @@ export interface ClassifiedThreat {
 export interface NewsItem {
   id: string;
   title: string;
-  link: string;
+  link?: string;
   source: string;
   sourceTier: number;
   region: string;
   publishedAt: number;
   summary?: string;
+  synthetic?: boolean;
   location?: { lat: number; lon: number; label: string; country?: string };
   classification: ClassifiedThreat;
 }

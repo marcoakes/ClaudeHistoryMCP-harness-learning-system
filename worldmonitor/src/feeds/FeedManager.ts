@@ -54,6 +54,7 @@ export async function fetchNews(limitPerFeed = 8): Promise<NewsItem[]> {
           region: feed.region,
           publishedAt: normalizeDate(raw.pubDate),
           summary: raw.contentSnippet,
+          synthetic: false,
           location,
           classification,
         });

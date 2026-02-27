@@ -15,9 +15,8 @@ export const onRequestGet: PagesFunction = async (context) => {
     }
     const xml = await resp.text();
 
-    const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].slice(0, 20);
     const extract = (block: string, tag: string): string | undefined => {
-      const m = block.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+      const m = block.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
       if (!m?.[1]) return undefined;
       return m[1]
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -25,7 +24,15 @@ export const onRequestGet: PagesFunction = async (context) => {
         .trim();
     };
 
-    const items = itemMatches.map((m) => {
+    const extractAtomLink = (block: string): string | undefined => {
+      const href = block.match(/<link[^>]*href=["']([^"']+)["'][^>]*\/?>/i)?.[1];
+      if (href) return href.trim();
+      return extract(block, 'link');
+    };
+
+    const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].slice(0, 20);
+    const entryMatches = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)].slice(0, 20);
+    const rssItems = itemMatches.map((m) => {
       const block = m[1];
       return {
         title: extract(block, 'title'),
@@ -35,7 +42,27 @@ export const onRequestGet: PagesFunction = async (context) => {
       };
     });
 
-    return Response.json({ items }, { headers: { 'Cache-Control': 's-maxage=120' } });
+    const atomItems = entryMatches.map((m) => {
+      const block = m[1];
+      return {
+        title: extract(block, 'title'),
+        link: extractAtomLink(block),
+        contentSnippet: extract(block, 'summary') || extract(block, 'content'),
+        pubDate: extract(block, 'updated') || extract(block, 'published'),
+      };
+    });
+
+    const items = [...rssItems, ...atomItems]
+      .filter((i) => i.title && i.link)
+      .slice(0, 20);
+
+    return Response.json(
+      {
+        items,
+        parser: { rssItems: rssItems.length, atomItems: atomItems.length, totalReturned: items.length },
+      },
+      { headers: { 'Cache-Control': 's-maxage=120' } }
+    );
   } catch (e) {
     return Response.json({ error: String(e), items: [] }, { status: 502 });
   }
