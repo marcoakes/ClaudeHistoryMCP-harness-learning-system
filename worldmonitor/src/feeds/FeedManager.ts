@@ -4,6 +4,7 @@ import type { NewsItem } from '../types';
 import { classifyWithAI } from '../intel/ThreatClassifier';
 import { locateHeadline } from './GeoLocator';
 import { MAX_NEWS_ITEMS } from '../utils/constants';
+import { buildFallbackNews } from './fallbackNews';
 
 interface RssItem {
   title?: string;
@@ -62,8 +63,15 @@ export async function fetchNews(limitPerFeed = 8): Promise<NewsItem[]> {
     }
   }
 
-  return all
+  const normalized = all
     .sort((a, b) => b.publishedAt - a.publishedAt)
     .slice(0, MAX_NEWS_ITEMS)
     .map((n) => ({ ...n, summary: n.summary || `Published ${formatISO(n.publishedAt)}` }));
+
+  // Keep dashboard usable in demos if external feeds are blocked/unavailable.
+  if (normalized.length === 0) {
+    return buildFallbackNews();
+  }
+
+  return normalized;
 }
