@@ -13,11 +13,14 @@ export function renderFeedHealthPanel(el: HTMLElement, entries: FeedHealthEntry[
         f.parserRssItems !== undefined || f.parserAtomItems !== undefined
           ? `RSS:${f.parserRssItems ?? 0} Atom:${f.parserAtomItems ?? 0}`
           : '-';
+      const detail = f.error ? f.error.slice(0, 80) : '-';
+      const detailTitle = (f.error || '').replace(/"/g, '&quot;');
       return `<tr>
         <td>${f.name}</td>
         <td>${statusBadge(f.status)}</td>
         <td>${f.itemCount}</td>
         <td>${parserMeta}</td>
+        <td title="${detailTitle}">${detail}</td>
       </tr>`;
     })
     .join('');
@@ -27,11 +30,14 @@ export function renderFeedHealthPanel(el: HTMLElement, entries: FeedHealthEntry[
     : '';
 
   el.innerHTML = `
-    <h3>Feed Health</h3>
+    <div class="panel-title-row">
+      <h3>Feed Health</h3>
+      <button type="button" class="retry-btn" data-action="retry-feeds">Retry now</button>
+    </div>
     ${banner}
     <div class="feed-health-wrap">
       <table>
-        <thead><tr><th>Source</th><th>Status</th><th>Items</th><th>Parser</th></tr></thead>
+        <thead><tr><th>Source</th><th>Status</th><th>Items</th><th>Parser</th><th>Detail</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>

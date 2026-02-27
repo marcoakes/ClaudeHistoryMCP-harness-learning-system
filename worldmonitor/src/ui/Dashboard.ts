@@ -16,6 +16,15 @@ export class Dashboard {
   private refreshTimer?: number;
   private briefTimer?: number;
   private root: HTMLElement;
+  private onRootClick = (event: Event): void => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const actionEl = target.closest<HTMLElement>('[data-action]');
+    if (!actionEl) return;
+    if (actionEl.dataset.action === 'retry-feeds') {
+      this.refreshAll();
+    }
+  };
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -43,6 +52,7 @@ export class Dashboard {
 
     this.mapView = new MapView(mapEl);
     this.mapView.init();
+    this.root.addEventListener('click', this.onRootClick);
 
     renderVideoPanel(this.root.querySelector<HTMLElement>('#videos')!);
     renderBriefPanel(this.root.querySelector<HTMLElement>('#brief')!, null);
@@ -86,5 +96,6 @@ export class Dashboard {
     if (this.refreshTimer) window.clearInterval(this.refreshTimer);
     if (this.briefTimer) window.clearInterval(this.briefTimer);
     this.mapView?.destroy();
+    this.root.removeEventListener('click', this.onRootClick);
   }
 }

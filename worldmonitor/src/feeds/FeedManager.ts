@@ -23,14 +23,31 @@ interface RssResponse {
   error?: string;
 }
 
+interface EarthquakeItem {
+  id: string;
+  title: string;
+  link?: string;
+  publishedAt: number;
+  magnitude?: number;
+  place?: string;
+  location?: { lat: number; lon: number };
+}
+
+interface EarthquakeResponse {
+  items: EarthquakeItem[];
+  total?: number;
+  error?: string;
+}
+
 export interface FeedFetchBundle {
   news: NewsItem[];
   feedHealth: FeedHealthEntry[];
   fallbackActive: boolean;
 }
 
-function normalizeDate(dateText?: string): number {
-  if (!dateText) return Date.now();
+function normalizeDate(dateText?: string | number): number {
+  if (dateText === undefined || dateText === null) return Date.now();
+  if (typeof dateText === 'number') return Number.isFinite(dateText) ? dateText : Date.now();
   const t = new Date(dateText).getTime();
   return Number.isFinite(t) ? t : Date.now();
 }
@@ -103,6 +120,69 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
         checkedAt: Date.now(),
       });
     }
+  }
+
+  // Supplemental threat stream: global earthquakes (USGS)
+  try {
+    const eqResp = await fetch('/api/earthquakes');
+    if (!eqResp.ok) {
+      feedHealth.push({
+        id: 'usgs-earthquakes',
+        name: 'USGS Earthquakes',
+        status: 'error',
+        itemCount: 0,
+        error: `HTTP ${eqResp.status}`,
+        checkedAt: Date.now(),
+      });
+    } else {
+      const eqData = (await eqResp.json()) as EarthquakeResponse;
+      const eqItems = eqData.items || [];
+      feedHealth.push({
+        id: 'usgs-earthquakes',
+        name: 'USGS Earthquakes',
+        status: eqItems.length > 0 ? 'ok' : 'empty',
+        itemCount: eqItems.length,
+        error: eqData.error,
+        checkedAt: Date.now(),
+      });
+
+      for (const eq of eqItems.slice(0, 15)) {
+        const title = eq.title?.trim();
+        if (!title) continue;
+
+        all.push({
+          id: `eq::${eq.id}`,
+          title,
+          link: eq.link,
+          source: 'USGS Earthquakes',
+          sourceTier: 1,
+          region: 'global',
+          publishedAt: normalizeDate(eq.publishedAt),
+          summary: eq.place || 'Seismic event',
+          synthetic: false,
+          location: eq.location
+            ? { lat: eq.location.lat, lon: eq.location.lon, label: eq.place || 'Earthquake' }
+            : locateHeadline(title),
+          classification: {
+            category: 'disaster',
+            severity: (eq.magnitude || 0) >= 6 ? 'high' : 'medium',
+            countries: [],
+            entities: [],
+            confidence: 0.92,
+            rationale: `usgs-mag-${eq.magnitude ?? 'na'}`,
+          },
+        });
+      }
+    }
+  } catch {
+    feedHealth.push({
+      id: 'usgs-earthquakes',
+      name: 'USGS Earthquakes',
+      status: 'error',
+      itemCount: 0,
+      error: 'fetch exception',
+      checkedAt: Date.now(),
+    });
   }
 
   const normalized = all
