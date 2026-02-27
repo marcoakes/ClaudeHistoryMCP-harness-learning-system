@@ -1,6 +1,6 @@
 import { appStore } from '../store';
 import { computeCii } from '../intel/CII';
-import { fetchNews } from '../feeds/FeedManager';
+import { fetchNewsBundle } from '../feeds/FeedManager';
 import { generateWorldBrief } from '../intel/WorldBrief';
 import { REFRESH_INTERVAL_MS, WORLD_BRIEF_INTERVAL_MS } from '../utils/constants';
 import { MapView } from '../map/MapView';
@@ -9,6 +9,7 @@ import { renderIntelPanel } from './IntelPanel';
 import { renderBriefPanel } from './BriefPanel';
 import { renderStatusBar } from './StatusBar';
 import { renderVideoPanel } from './VideoPanel';
+import { renderFeedHealthPanel } from './FeedHealthPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -30,6 +31,7 @@ export class Dashboard {
         <div class="side-column">
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
+          <section id="health" class="panel"></section>
           <section id="news" class="panel panel-scroll"></section>
           <section id="videos" class="panel"></section>
         </div>
@@ -53,11 +55,13 @@ export class Dashboard {
   async refreshAll(): Promise<void> {
     appStore.getState().setLoading(true);
 
-    const news = await fetchNews();
+    const bundle = await fetchNewsBundle();
+    const { news, feedHealth, fallbackActive } = bundle;
     const cii = computeCii(news);
 
     appStore.getState().setNews(news);
     appStore.getState().setCii(cii);
+    appStore.getState().setFeedHealth(feedHealth);
     appStore.getState().setLastRefresh(Date.now());
     appStore.getState().setLoading(false);
 
@@ -65,6 +69,7 @@ export class Dashboard {
 
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, news);
     renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news);
+    renderFeedHealthPanel(this.root.querySelector<HTMLElement>('#health')!, feedHealth, fallbackActive);
     renderStatusBar(this.root.querySelector<HTMLElement>('#status')!, appStore.getState().lastRefresh);
 
     await this.refreshBrief();

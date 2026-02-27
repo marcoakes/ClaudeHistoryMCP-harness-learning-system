@@ -51,3 +51,14 @@ export interface CiiEntry {
   score: number;
   delta24h: number;
 }
+
+export interface FeedHealthEntry {
+  id: string;
+  name: string;
+  status: 'ok' | 'empty' | 'error';
+  itemCount: number;
+  parserRssItems?: number;
+  parserAtomItems?: number;
+  error?: string;
+  checkedAt: number;
+}
