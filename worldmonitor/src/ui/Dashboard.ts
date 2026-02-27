@@ -18,6 +18,9 @@ import { renderRedTeamPanel } from './RedTeamPanel';
 import { getHypothesisSnapshot, renderHypothesisPanel } from './HypothesisPanel';
 import { renderIncidentQueue } from './IncidentQueuePanel';
 import type { IncidentRecord, NewsItem } from '../types';
+import { runThreatModel } from '../model/ThreatModelEngine';
+import { renderTrajectoryPanel } from './TrajectoryPanel';
+import { renderInterventionPanel } from './InterventionPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -145,6 +148,8 @@ export class Dashboard {
           <section id="redteam" class="panel panel-scroll"></section>
           <section id="hypothesis" class="panel panel-scroll"></section>
           <section id="incidents" class="panel panel-scroll"></section>
+          <section id="trajectory" class="panel panel-scroll"></section>
+          <section id="interventions" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -211,6 +216,7 @@ export class Dashboard {
 
   private renderSnapshot(): void {
     const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
+    const model = runThreatModel(snapshotNews, cii, this.incidents, windowHours, referenceNow);
     appStore.getState().setCii(cii);
     if (!this.selectedCountryIso2) {
       this.selectedCountryIso2 = this.watchlist[0] || cii[0]?.iso2;
@@ -231,6 +237,8 @@ export class Dashboard {
     renderRedTeamPanel(this.root.querySelector<HTMLElement>('#redteam')!, cii, snapshotNews, windowHours, referenceNow);
     renderHypothesisPanel(this.root.querySelector<HTMLElement>('#hypothesis')!, cii, snapshotNews, windowHours, referenceNow);
     renderIncidentQueue(this.root.querySelector<HTMLElement>('#incidents')!, this.incidents);
+    renderTrajectoryPanel(this.root.querySelector<HTMLElement>('#trajectory')!, model.trajectories);
+    renderInterventionPanel(this.root.querySelector<HTMLElement>('#interventions')!, model.interventions);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -365,6 +373,7 @@ export class Dashboard {
   private exportSnapshot(format: 'json' | 'md'): void {
     const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
     const hypotheses = getHypothesisSnapshot(cii, snapshotNews, windowHours, referenceNow);
+    const model = runThreatModel(snapshotNews, cii, this.incidents, windowHours, referenceNow);
     const ts = new Date(referenceNow).toISOString().replace(/[:.]/g, '-');
     const baseName = `worldmonitor-snapshot-${windowHours}h-${ts}`;
 
@@ -376,6 +385,8 @@ export class Dashboard {
         topCountries: cii.slice(0, 15),
         hypotheses,
         incidents: this.incidents,
+        trajectories: model.trajectories,
+        interventions: model.interventions,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -411,6 +422,18 @@ export class Dashboard {
       '## Incident Queue',
       ...this.incidents.map(
         (i, idx) => `${idx + 1}. ${i.title} [${i.status}] owner=${i.owner || 'unassigned'} notes=${i.notes || 'none'}`
+      ),
+      '',
+      '## Active Trajectories',
+      ...model.trajectories.map(
+        (t, idx) =>
+          `${idx + 1}. ${t.country}/${t.category} [${t.phase}] momentum=${t.momentum >= 0 ? '+' : ''}${t.momentum} confidence=${t.confidence}`
+      ),
+      '',
+      '## Recommended Interventions',
+      ...model.interventions.map(
+        (i, idx) =>
+          `${idx + 1}. ${i.title} — expected risk reduction ${i.expectedRiskReduction}% (owner=${i.ownerRole}, latency=${i.latencyHours}h, confidence=${i.confidenceBand})`
       ),
       '',
       '## Priority Events',
