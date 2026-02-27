@@ -14,6 +14,7 @@ import { renderCriticalRail } from './CriticalRail';
 import { renderScenarioPanel } from './ScenarioPanel';
 import { renderCountryDrilldown } from './CountryDrilldownPanel';
 import { renderControlPanel } from './ControlPanel';
+import { renderRedTeamPanel } from './RedTeamPanel';
 import type { NewsItem } from '../types';
 
 export class Dashboard {
@@ -41,6 +42,14 @@ export class Dashboard {
       if (![1, 6, 24].includes(hours)) return;
       appStore.getState().setAnalysisWindowHours(hours);
       this.renderSnapshot();
+      return;
+    }
+    if (actionEl.dataset.action === 'export-json') {
+      this.exportSnapshot('json');
+      return;
+    }
+    if (actionEl.dataset.action === 'export-md') {
+      this.exportSnapshot('md');
       return;
     }
     if (actionEl.dataset.action === 'timeline-play') {
@@ -97,6 +106,7 @@ export class Dashboard {
           <section id="controls" class="panel"></section>
           <section id="critical" class="panel panel-scroll"></section>
           <section id="scenario" class="panel panel-scroll"></section>
+          <section id="redteam" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -179,6 +189,7 @@ export class Dashboard {
     );
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, snapshotNews, windowHours, referenceNow);
     renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, snapshotNews, windowHours, referenceNow);
+    renderRedTeamPanel(this.root.querySelector<HTMLElement>('#redteam')!, cii, snapshotNews, windowHours, referenceNow);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -242,6 +253,68 @@ export class Dashboard {
       }
       this.renderSnapshot();
     }, 1200);
+  }
+
+  private exportSnapshot(format: 'json' | 'md'): void {
+    const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
+    const ts = new Date(referenceNow).toISOString().replace(/[:.]/g, '-');
+    const baseName = `worldmonitor-snapshot-${windowHours}h-${ts}`;
+
+    if (format === 'json') {
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        referenceNow: new Date(referenceNow).toISOString(),
+        windowHours,
+        topCountries: cii.slice(0, 15),
+        events: snapshotNews.slice(0, 120).map((n) => ({
+          title: n.title,
+          source: n.source,
+          publishedAt: new Date(n.publishedAt).toISOString(),
+          category: n.classification.category,
+          severity: n.classification.severity,
+          countries: n.classification.countries,
+          link: n.link,
+        })),
+      };
+      this.downloadBlob(`${baseName}.json`, JSON.stringify(payload, null, 2), 'application/json');
+      return;
+    }
+
+    const top = cii.slice(0, 10);
+    const events = snapshotNews.slice(0, 25);
+    const md = [
+      '# WorldMonitor Snapshot',
+      '',
+      `- Generated: ${new Date().toISOString()}`,
+      `- Reference Cursor: ${new Date(referenceNow).toISOString()}`,
+      `- Analysis Window: ${windowHours}h`,
+      '',
+      '## Top Country Instability',
+      ...top.map((c, i) => `${i + 1}. ${c.country} — score ${c.score}, Δ24h ${c.delta24h >= 0 ? '+' : ''}${c.delta24h}`),
+      '',
+      '## Priority Events',
+      ...events.map(
+        (e, i) =>
+          `${i + 1}. [${e.source}] ${e.title} (${e.classification.severity}/${e.classification.category})${
+            e.link ? ` - ${e.link}` : ''
+          }`
+      ),
+      '',
+    ].join('\n');
+
+    this.downloadBlob(`${baseName}.md`, md, 'text/markdown');
+  }
+
+  private downloadBlob(fileName: string, content: string, type: string): void {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   unmount(): void {

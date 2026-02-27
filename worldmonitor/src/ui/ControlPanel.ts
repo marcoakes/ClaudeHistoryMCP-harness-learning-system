@@ -83,6 +83,8 @@ export function renderControlPanel(
       <button type="button" class="window-btn" data-action="timeline-step" data-direction="back">-30m</button>
       <button type="button" class="window-btn ${playbackRunning ? 'window-btn-active' : ''}" data-action="timeline-play">${playbackRunning ? 'Pause' : 'Play 24h'}</button>
       <button type="button" class="window-btn" data-action="timeline-step" data-direction="forward">+30m</button>
+      <button type="button" class="window-btn" data-action="export-json">Export JSON</button>
+      <button type="button" class="window-btn" data-action="export-md">Export MD</button>
       <span class="meta">Cursor: ${relativeLabel(referenceNow)}</span>
     </div>
     <input type="range" min="0" max="48" step="1" value="${Math.round(playbackMinutesAgo / 30)}" data-action="set-playback" class="timeline-slider" />

@@ -57,7 +57,7 @@ body,
 
 .side-column {
   display: grid;
-  grid-template-rows: auto minmax(120px, 15vh) minmax(120px, 15vh) auto minmax(130px, 18vh) minmax(160px, 22vh) minmax(220px, 1fr) minmax(150px, 22vh) minmax(150px, 22vh);
+  grid-template-rows: auto minmax(110px, 14vh) minmax(110px, 14vh) minmax(110px, 14vh) auto minmax(120px, 16vh) minmax(150px, 20vh) minmax(220px, 1fr) minmax(140px, 20vh) minmax(140px, 20vh);
   gap: 10px;
   min-height: 0;
 }
