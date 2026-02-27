@@ -39,6 +39,36 @@ interface EarthquakeResponse {
   error?: string;
 }
 
+interface EonetItem {
+  id: string;
+  title: string;
+  link?: string;
+  category?: string;
+  publishedAt?: string;
+  location?: { lat: number; lon: number };
+}
+
+interface EonetResponse {
+  items: EonetItem[];
+  total?: number;
+  error?: string;
+}
+
+interface GdacsItem {
+  id: string;
+  title: string;
+  link?: string;
+  summary?: string;
+  publishedAt?: string;
+  location?: { lat: number; lon: number };
+}
+
+interface GdacsResponse {
+  items: GdacsItem[];
+  total?: number;
+  error?: string;
+}
+
 export interface FeedFetchBundle {
   news: NewsItem[];
   feedHealth: FeedHealthEntry[];
@@ -178,6 +208,141 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
     feedHealth.push({
       id: 'usgs-earthquakes',
       name: 'USGS Earthquakes',
+      status: 'error',
+      itemCount: 0,
+      error: 'fetch exception',
+      checkedAt: Date.now(),
+    });
+  }
+
+  // Supplemental threat stream: NASA EONET natural hazard events
+  try {
+    const eonetResp = await fetch('/api/fires');
+    if (!eonetResp.ok) {
+      feedHealth.push({
+        id: 'nasa-eonet',
+        name: 'NASA EONET',
+        status: 'error',
+        itemCount: 0,
+        error: `HTTP ${eonetResp.status}`,
+        checkedAt: Date.now(),
+      });
+    } else {
+      const eonetData = (await eonetResp.json()) as EonetResponse;
+      const eonetItems = eonetData.items || [];
+      feedHealth.push({
+        id: 'nasa-eonet',
+        name: 'NASA EONET',
+        status: eonetItems.length > 0 ? 'ok' : 'empty',
+        itemCount: eonetItems.length,
+        error: eonetData.error,
+        checkedAt: Date.now(),
+      });
+
+      for (const item of eonetItems.slice(0, 20)) {
+        const title = item.title?.trim();
+        if (!title) continue;
+        const categoryText = (item.category || '').toLowerCase();
+        const category = /volcano|wildfire|severe storms|flood|earthquake|landslide/.test(categoryText)
+          ? 'disaster'
+          : 'environment';
+        const severity = /volcano|earthquake|severe storms|flood/.test(categoryText)
+          ? 'high'
+          : 'medium';
+
+        all.push({
+          id: `eonet::${item.id}`,
+          title,
+          link: item.link,
+          source: 'NASA EONET',
+          sourceTier: 1,
+          region: 'global',
+          publishedAt: normalizeDate(item.publishedAt),
+          summary: `EONET category: ${item.category || 'Event'}`,
+          synthetic: false,
+          location: item.location
+            ? { lat: item.location.lat, lon: item.location.lon, label: item.category || 'EONET Event' }
+            : locateHeadline(title),
+          classification: {
+            category,
+            severity,
+            countries: [],
+            entities: [],
+            confidence: 0.88,
+            rationale: `eonet-${item.category || 'event'}`,
+          },
+        });
+      }
+    }
+  } catch {
+    feedHealth.push({
+      id: 'nasa-eonet',
+      name: 'NASA EONET',
+      status: 'error',
+      itemCount: 0,
+      error: 'fetch exception',
+      checkedAt: Date.now(),
+    });
+  }
+
+  // Supplemental threat stream: GDACS global disaster alerts
+  try {
+    const gdacsResp = await fetch('/api/gdelt');
+    if (!gdacsResp.ok) {
+      feedHealth.push({
+        id: 'gdacs-alerts',
+        name: 'GDACS Alerts',
+        status: 'error',
+        itemCount: 0,
+        error: `HTTP ${gdacsResp.status}`,
+        checkedAt: Date.now(),
+      });
+    } else {
+      const gdacsData = (await gdacsResp.json()) as GdacsResponse;
+      const gdacsItems = gdacsData.items || [];
+      feedHealth.push({
+        id: 'gdacs-alerts',
+        name: 'GDACS Alerts',
+        status: gdacsItems.length > 0 ? 'ok' : 'empty',
+        itemCount: gdacsItems.length,
+        error: gdacsData.error,
+        checkedAt: Date.now(),
+      });
+
+      for (const item of gdacsItems.slice(0, 20)) {
+        const title = item.title?.trim();
+        if (!title) continue;
+        const titleLower = title.toLowerCase();
+        const severity = titleLower.includes('red') ? 'critical' : titleLower.includes('orange') ? 'high' : 'medium';
+
+        all.push({
+          id: `gdacs::${item.id}`,
+          title,
+          link: item.link,
+          source: 'GDACS Alerts',
+          sourceTier: 1,
+          region: 'global',
+          publishedAt: normalizeDate(item.publishedAt),
+          summary: item.summary || 'GDACS disaster alert',
+          synthetic: false,
+          location: item.location
+            ? { lat: item.location.lat, lon: item.location.lon, label: 'GDACS Alert' }
+            : locateHeadline(title),
+          classification: {
+            category: 'disaster',
+            severity,
+            countries: [],
+            entities: [],
+            confidence: 0.9,
+            rationale: 'gdacs-rss',
+          },
+        });
+      }
+    }
+  } catch {
+    feedHealth.push({
+      id: 'gdacs-alerts',
+      name: 'GDACS Alerts',
       status: 'error',
       itemCount: 0,
       error: 'fetch exception',
