@@ -11,6 +11,7 @@ import { renderStatusBar } from './StatusBar';
 import { renderVideoPanel } from './VideoPanel';
 import { renderFeedHealthPanel } from './FeedHealthPanel';
 import { renderCriticalRail } from './CriticalRail';
+import { renderScenarioPanel } from './ScenarioPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -40,6 +41,7 @@ export class Dashboard {
         </div>
         <div class="side-column">
           <section id="critical" class="panel panel-scroll"></section>
+          <section id="scenario" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="health" class="panel"></section>
@@ -80,6 +82,7 @@ export class Dashboard {
     this.mapView?.setEvents(news);
 
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, news);
+    renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, news);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, news);
     renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news);
     renderFeedHealthPanel(this.root.querySelector<HTMLElement>('#health')!, feedHealth, fallbackActive);

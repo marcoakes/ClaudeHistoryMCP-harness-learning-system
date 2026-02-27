@@ -23,11 +23,12 @@ export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsIte
     .map((c) => {
       const v = velocity.get(c.iso2) || { prev: 0, curr: 0 };
       const delta = v.curr - v.prev;
+      const escalated = c.score >= 60 && c.delta24h >= 3 && delta >= 2 && v.curr >= 2;
       const max = Math.max(1, v.prev, v.curr);
       const prevW = Math.max(8, Math.round((v.prev / max) * 50));
       const currW = Math.max(8, Math.round((v.curr / max) * 50));
       return `<tr>
-        <td>${c.country}</td>
+        <td>${c.country}${escalated ? ' <span class="escalation-badge">Escalating</span>' : ''}</td>
         <td>${c.score}</td>
         <td>${c.delta24h >= 0 ? '+' : ''}${c.delta24h}</td>
         <td>
