@@ -16,7 +16,8 @@ import { renderCountryDrilldown } from './CountryDrilldownPanel';
 import { renderControlPanel } from './ControlPanel';
 import { renderRedTeamPanel } from './RedTeamPanel';
 import { getHypothesisSnapshot, renderHypothesisPanel } from './HypothesisPanel';
-import type { NewsItem } from '../types';
+import { renderIncidentQueue } from './IncidentQueuePanel';
+import type { IncidentRecord, NewsItem } from '../types';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -28,7 +29,9 @@ export class Dashboard {
   private playbackMinutesAgo = 0;
   private playbackRunning = false;
   private watchlist: string[] = [];
+  private incidents: IncidentRecord[] = [];
   private readonly WATCHLIST_KEY = 'worldmonitor.watchlist';
+  private readonly INCIDENTS_KEY = 'worldmonitor.incidents';
   private onRootClick = (event: Event): void => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -36,6 +39,38 @@ export class Dashboard {
     if (!actionEl) return;
     if (actionEl.dataset.action === 'retry-feeds') {
       this.refreshAll();
+      return;
+    }
+    if (actionEl.dataset.action === 'promote-incident') {
+      const eventId = actionEl.dataset.eventId;
+      if (eventId) this.promoteIncident(eventId);
+      return;
+    }
+    if (actionEl.dataset.action === 'incident-status') {
+      const id = actionEl.dataset.incidentId;
+      const next = actionEl.dataset.nextStatus as IncidentRecord['status'] | undefined;
+      if (id && next) this.updateIncident(id, { status: next });
+      return;
+    }
+    if (actionEl.dataset.action === 'incident-owner') {
+      const id = actionEl.dataset.incidentId;
+      if (!id) return;
+      const current = this.incidents.find((i) => i.id === id)?.owner || '';
+      const owner = window.prompt('Set incident owner:', current) || '';
+      this.updateIncident(id, { owner: owner || undefined });
+      return;
+    }
+    if (actionEl.dataset.action === 'incident-note') {
+      const id = actionEl.dataset.incidentId;
+      if (!id) return;
+      const current = this.incidents.find((i) => i.id === id)?.notes || '';
+      const notes = window.prompt('Set incident notes:', current) || '';
+      this.updateIncident(id, { notes: notes || undefined });
+      return;
+    }
+    if (actionEl.dataset.action === 'incident-remove') {
+      const id = actionEl.dataset.incidentId;
+      if (id) this.removeIncident(id);
       return;
     }
     if (actionEl.dataset.action === 'set-window') {
@@ -109,6 +144,7 @@ export class Dashboard {
           <section id="scenario" class="panel panel-scroll"></section>
           <section id="redteam" class="panel panel-scroll"></section>
           <section id="hypothesis" class="panel panel-scroll"></section>
+          <section id="incidents" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -127,6 +163,7 @@ export class Dashboard {
     this.root.addEventListener('click', this.onRootClick);
     this.root.addEventListener('input', this.onRootInput);
     this.watchlist = this.loadWatchlist();
+    this.incidents = this.loadIncidents();
 
     renderVideoPanel(this.root.querySelector<HTMLElement>('#videos')!);
     renderBriefPanel(this.root.querySelector<HTMLElement>('#brief')!, null);
@@ -193,6 +230,7 @@ export class Dashboard {
     renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, snapshotNews, windowHours, referenceNow);
     renderRedTeamPanel(this.root.querySelector<HTMLElement>('#redteam')!, cii, snapshotNews, windowHours, referenceNow);
     renderHypothesisPanel(this.root.querySelector<HTMLElement>('#hypothesis')!, cii, snapshotNews, windowHours, referenceNow);
+    renderIncidentQueue(this.root.querySelector<HTMLElement>('#incidents')!, this.incidents);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -224,9 +262,28 @@ export class Dashboard {
     }
   }
 
+  private loadIncidents(): IncidentRecord[] {
+    try {
+      const raw = localStorage.getItem(this.INCIDENTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as IncidentRecord[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
   private saveWatchlist(): void {
     try {
       localStorage.setItem(this.WATCHLIST_KEY, JSON.stringify(this.watchlist));
+    } catch {
+      // ignore localStorage failures
+    }
+  }
+
+  private saveIncidents(): void {
+    try {
+      localStorage.setItem(this.INCIDENTS_KEY, JSON.stringify(this.incidents));
     } catch {
       // ignore localStorage failures
     }
@@ -239,6 +296,53 @@ export class Dashboard {
       this.watchlist = [...this.watchlist, iso2].slice(0, 12);
     }
     this.saveWatchlist();
+  }
+
+  private promoteIncident(eventId: string): void {
+    const { snapshotNews } = this.getSnapshotData();
+    const event = snapshotNews.find((n) => n.id === eventId);
+    if (!event) return;
+    const existing = this.incidents.find((i) => i.eventId === eventId);
+    if (existing) return;
+    const now = Date.now();
+    this.incidents = [
+      {
+        id: `inc-${crypto.randomUUID()}`,
+        eventId: event.id,
+        title: event.title,
+        source: event.source,
+        severity: event.classification.severity,
+        category: event.classification.category,
+        countries: event.classification.countries,
+        link: event.link,
+        createdAt: now,
+        updatedAt: now,
+        status: 'new' as const,
+      },
+      ...this.incidents,
+    ].slice(0, 100);
+    this.saveIncidents();
+    this.renderSnapshot();
+  }
+
+  private updateIncident(id: string, patch: Partial<IncidentRecord>): void {
+    this.incidents = this.incidents.map((i) =>
+      i.id === id
+        ? {
+            ...i,
+            ...patch,
+            updatedAt: Date.now(),
+          }
+        : i
+    );
+    this.saveIncidents();
+    this.renderSnapshot();
+  }
+
+  private removeIncident(id: string): void {
+    this.incidents = this.incidents.filter((i) => i.id !== id);
+    this.saveIncidents();
+    this.renderSnapshot();
   }
 
   private togglePlayback(): void {
@@ -271,6 +375,7 @@ export class Dashboard {
         windowHours,
         topCountries: cii.slice(0, 15),
         hypotheses,
+        incidents: this.incidents,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -301,6 +406,11 @@ export class Dashboard {
       ...hypotheses.map(
         (h, i) =>
           `${i + 1}. ${h.title} [${h.state}] — Likelihood ${h.likelihood}, Impact ${h.impact}, Confidence ${h.confidence}. ${h.statement}`
+      ),
+      '',
+      '## Incident Queue',
+      ...this.incidents.map(
+        (i, idx) => `${idx + 1}. ${i.title} [${i.status}] owner=${i.owner || 'unassigned'} notes=${i.notes || 'none'}`
       ),
       '',
       '## Priority Events',

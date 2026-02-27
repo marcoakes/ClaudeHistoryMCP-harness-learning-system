@@ -22,6 +22,7 @@ export function renderCriticalRail(el: HTMLElement, news: NewsItem[], windowHour
       <div class="critical-main">
         <span class="severity-chip sev-${n.classification.severity}">${n.classification.severity}</span>
         ${title}
+        <button type="button" class="mini-action-btn" data-action="promote-incident" data-event-id="${n.id}">+ Incident</button>
       </div>
       <div class="meta">${n.source} • ${relativeAge(n.publishedAt)} ago</div>
     </li>`;

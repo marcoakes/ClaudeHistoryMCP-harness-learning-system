@@ -9,7 +9,10 @@ export function renderNewsPanel(el: HTMLElement, items: NewsItem[]): void {
     const syntheticBadge = n.synthetic ? ' • FALLBACK' : '';
 
     return `<li class="news-item">
-      ${title}
+      <div class="critical-main">
+        ${title}
+        <button type="button" class="mini-action-btn" data-action="promote-incident" data-event-id="${n.id}">+ Incident</button>
+      </div>
       <div class="meta">${n.source}${syntheticBadge} • ${n.classification.severity.toUpperCase()} • ${new Date(n.publishedAt).toLocaleString()}</div>
     </li>`;
   });

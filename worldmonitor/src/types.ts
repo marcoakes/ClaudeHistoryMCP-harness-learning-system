@@ -62,3 +62,21 @@ export interface FeedHealthEntry {
   error?: string;
   checkedAt: number;
 }
+
+export type IncidentStatus = 'new' | 'triaged' | 'investigating' | 'contained' | 'closed';
+
+export interface IncidentRecord {
+  id: string;
+  eventId: string;
+  title: string;
+  source: string;
+  severity: ThreatSeverity;
+  category: ThreatCategory;
+  countries: string[];
+  link?: string;
+  createdAt: number;
+  updatedAt: number;
+  status: IncidentStatus;
+  owner?: string;
+  notes?: string;
+}
