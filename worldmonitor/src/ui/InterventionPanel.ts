@@ -11,6 +11,9 @@ export function renderInterventionPanel(el: HTMLElement, interventions: Interven
       </div>
       <div class="meta">Owner: ${i.ownerRole} • Latency: ${i.latencyHours}h • Confidence: ${i.confidenceBand}</div>
       <div class="meta">Tradeoff: ${i.tradeoff}</div>
+      <div class="window-row">
+        <button type="button" class="window-btn" data-action="simulate-intervention" data-intervention-id="${i.id}">Simulate</button>
+      </div>
     </li>`
     )
     .join('');

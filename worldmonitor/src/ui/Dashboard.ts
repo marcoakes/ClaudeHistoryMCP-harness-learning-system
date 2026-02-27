@@ -21,6 +21,9 @@ import type { IncidentRecord, NewsItem } from '../types';
 import { runThreatModel } from '../model/ThreatModelEngine';
 import { renderTrajectoryPanel } from './TrajectoryPanel';
 import { renderInterventionPanel } from './InterventionPanel';
+import { EXPOSURE_PROFILE } from '../../data/exposure-profile';
+import { renderExposurePanel } from './ExposurePanel';
+import { renderCounterfactualPanel } from './CounterfactualPanel';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -33,6 +36,7 @@ export class Dashboard {
   private playbackRunning = false;
   private watchlist: string[] = [];
   private incidents: IncidentRecord[] = [];
+  private selectedInterventionId?: string;
   private readonly WATCHLIST_KEY = 'worldmonitor.watchlist';
   private readonly INCIDENTS_KEY = 'worldmonitor.incidents';
   private onRootClick = (event: Event): void => {
@@ -47,6 +51,14 @@ export class Dashboard {
     if (actionEl.dataset.action === 'promote-incident') {
       const eventId = actionEl.dataset.eventId;
       if (eventId) this.promoteIncident(eventId);
+      return;
+    }
+    if (actionEl.dataset.action === 'simulate-intervention') {
+      const id = actionEl.dataset.interventionId;
+      if (id) {
+        this.selectedInterventionId = id;
+        this.renderSnapshot();
+      }
       return;
     }
     if (actionEl.dataset.action === 'incident-status') {
@@ -150,6 +162,8 @@ export class Dashboard {
           <section id="incidents" class="panel panel-scroll"></section>
           <section id="trajectory" class="panel panel-scroll"></section>
           <section id="interventions" class="panel panel-scroll"></section>
+          <section id="counterfactual" class="panel"></section>
+          <section id="exposure" class="panel"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -216,7 +230,15 @@ export class Dashboard {
 
   private renderSnapshot(): void {
     const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
-    const model = runThreatModel(snapshotNews, cii, this.incidents, windowHours, referenceNow);
+    const model = runThreatModel(
+      snapshotNews,
+      cii,
+      this.incidents,
+      windowHours,
+      referenceNow,
+      EXPOSURE_PROFILE,
+      this.selectedInterventionId
+    );
     appStore.getState().setCii(cii);
     if (!this.selectedCountryIso2) {
       this.selectedCountryIso2 = this.watchlist[0] || cii[0]?.iso2;
@@ -239,6 +261,8 @@ export class Dashboard {
     renderIncidentQueue(this.root.querySelector<HTMLElement>('#incidents')!, this.incidents);
     renderTrajectoryPanel(this.root.querySelector<HTMLElement>('#trajectory')!, model.trajectories);
     renderInterventionPanel(this.root.querySelector<HTMLElement>('#interventions')!, model.interventions);
+    renderCounterfactualPanel(this.root.querySelector<HTMLElement>('#counterfactual')!, model.counterfactual);
+    renderExposurePanel(this.root.querySelector<HTMLElement>('#exposure')!, model.exposureAssessments);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -373,7 +397,15 @@ export class Dashboard {
   private exportSnapshot(format: 'json' | 'md'): void {
     const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
     const hypotheses = getHypothesisSnapshot(cii, snapshotNews, windowHours, referenceNow);
-    const model = runThreatModel(snapshotNews, cii, this.incidents, windowHours, referenceNow);
+    const model = runThreatModel(
+      snapshotNews,
+      cii,
+      this.incidents,
+      windowHours,
+      referenceNow,
+      EXPOSURE_PROFILE,
+      this.selectedInterventionId
+    );
     const ts = new Date(referenceNow).toISOString().replace(/[:.]/g, '-');
     const baseName = `worldmonitor-snapshot-${windowHours}h-${ts}`;
 
@@ -387,6 +419,8 @@ export class Dashboard {
         incidents: this.incidents,
         trajectories: model.trajectories,
         interventions: model.interventions,
+        exposureAssessments: model.exposureAssessments,
+        counterfactual: model.counterfactual,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -435,6 +469,19 @@ export class Dashboard {
         (i, idx) =>
           `${idx + 1}. ${i.title} — expected risk reduction ${i.expectedRiskReduction}% (owner=${i.ownerRole}, latency=${i.latencyHours}h, confidence=${i.confidenceBand})`
       ),
+      '',
+      '## Exposure Overlay',
+      ...model.exposureAssessments.map(
+        (e, idx) => `${idx + 1}. ${e.country} — assets=${e.assetCount}, CII=${e.countryScore}, exposureRisk=${e.exposureRisk}`
+      ),
+      '',
+      '## Counterfactual',
+      ...(model.counterfactual
+        ? [
+            `${model.counterfactual.title}`,
+            `baseline=${model.counterfactual.baselineRisk}, projected=${model.counterfactual.projectedRisk}, reduction=${model.counterfactual.riskReduction}, confidence=${model.counterfactual.confidenceBand}`,
+          ]
+        : ['No counterfactual selected']),
       '',
       '## Priority Events',
       ...events.map(
