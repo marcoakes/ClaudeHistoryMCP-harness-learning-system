@@ -25,6 +25,8 @@ import { DEFAULT_EXPOSURE_PROFILE, EXPOSURE_PROFILES, EXPOSURE_PROFILE_LABELS } 
 import { renderExposurePanel } from './ExposurePanel';
 import { renderCounterfactualPanel } from './CounterfactualPanel';
 import { renderPortfolioPanel } from './PortfolioPanel';
+import { renderAdversaryPanel } from './AdversaryPanel';
+import type { ExposureAsset } from '../../data/exposure-profile';
 
 export class Dashboard {
   private mapView?: MapView;
@@ -42,6 +44,8 @@ export class Dashboard {
   private selectedInterventionId?: string;
   private readonly WATCHLIST_KEY = 'worldmonitor.watchlist';
   private readonly INCIDENTS_KEY = 'worldmonitor.incidents';
+  private readonly CUSTOM_EXPOSURE_KEY = 'custom_upload';
+  private readonly CUSTOM_EXPOSURE_STORAGE_KEY = 'worldmonitor.customExposureProfile';
   private onRootClick = (event: Event): void => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -100,9 +104,13 @@ export class Dashboard {
     }
     if (actionEl.dataset.action === 'set-exposure-profile') {
       const profile = actionEl.dataset.profile || '';
-      if (!EXPOSURE_PROFILES[profile]) return;
+      if (!EXPOSURE_PROFILES[profile] && !(profile === this.CUSTOM_EXPOSURE_KEY && this.getCustomExposure().length > 0)) return;
       this.selectedExposureProfileKey = profile;
       this.renderSnapshot();
+      return;
+    }
+    if (actionEl.dataset.action === 'download-exposure-template') {
+      this.downloadExposureTemplate();
       return;
     }
     if (actionEl.dataset.action === 'export-json') {
@@ -158,6 +166,32 @@ export class Dashboard {
       this.renderSnapshot();
     }
   };
+  private onRootChange = async (event: Event): Promise<void> => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    const actionEl = target.closest<HTMLElement>('[data-action]');
+    if (!actionEl) return;
+    if (actionEl.dataset.action !== 'upload-exposure-csv') return;
+    const input = actionEl as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const csv = await file.text();
+      const parsed = this.parseExposureCsv(csv);
+      if (parsed.length === 0) {
+        window.alert('No valid rows found in CSV. Expected columns: id,name,type,countryIso2,criticality,dependencyWeight');
+        return;
+      }
+      this.saveCustomExposure(parsed);
+      this.selectedExposureProfileKey = this.CUSTOM_EXPOSURE_KEY;
+      this.renderSnapshot();
+    } catch (error) {
+      window.alert(`Failed to parse CSV: ${String(error)}`);
+    } finally {
+      input.value = '';
+    }
+  };
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -182,6 +216,7 @@ export class Dashboard {
           <section id="portfolio" class="panel"></section>
           <section id="counterfactual" class="panel"></section>
           <section id="exposure" class="panel"></section>
+          <section id="adversary" class="panel"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -199,6 +234,7 @@ export class Dashboard {
     this.mapView.init();
     this.root.addEventListener('click', this.onRootClick);
     this.root.addEventListener('input', this.onRootInput);
+    this.root.addEventListener('change', this.onRootChange);
     this.watchlist = this.loadWatchlist();
     this.incidents = this.loadIncidents();
 
@@ -254,7 +290,7 @@ export class Dashboard {
       this.incidents,
       windowHours,
       referenceNow,
-      EXPOSURE_PROFILES[this.selectedExposureProfileKey] || [],
+      this.getActiveExposureProfile(),
       this.selectedInterventionId,
       this.portfolioBudget
     );
@@ -273,7 +309,7 @@ export class Dashboard {
       this.playbackRunning,
       this.watchlist,
       this.selectedExposureProfileKey,
-      EXPOSURE_PROFILE_LABELS,
+      this.getExposureProfileLabels(),
       this.portfolioBudget
     );
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, snapshotNews, windowHours, referenceNow);
@@ -286,6 +322,7 @@ export class Dashboard {
     renderPortfolioPanel(this.root.querySelector<HTMLElement>('#portfolio')!, model.portfolio);
     renderCounterfactualPanel(this.root.querySelector<HTMLElement>('#counterfactual')!, model.counterfactual);
     renderExposurePanel(this.root.querySelector<HTMLElement>('#exposure')!, model.exposureAssessments);
+    renderAdversaryPanel(this.root.querySelector<HTMLElement>('#adversary')!, model.adversaryMoves);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -426,7 +463,7 @@ export class Dashboard {
       this.incidents,
       windowHours,
       referenceNow,
-      EXPOSURE_PROFILES[this.selectedExposureProfileKey] || [],
+      this.getActiveExposureProfile(),
       this.selectedInterventionId,
       this.portfolioBudget
     );
@@ -448,6 +485,7 @@ export class Dashboard {
         exposureAssessments: model.exposureAssessments,
         counterfactual: model.counterfactual,
         portfolio: model.portfolio,
+        adversaryMoves: model.adversaryMoves,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -520,6 +558,11 @@ export class Dashboard {
           ]
         : ['No feasible portfolio in current budget']),
       '',
+      '## Adversary Playbook',
+      ...model.adversaryMoves.map(
+        (m, idx) => `${idx + 1}. ${m.actor} (${m.confidence}) — ${m.objective}. Likely action: ${m.likelyAction}. Targets: ${m.targetCountries.join(', ')}`
+      ),
+      '',
       '## Priority Events',
       ...events.map(
         (e, i) =>
@@ -545,6 +588,95 @@ export class Dashboard {
     URL.revokeObjectURL(url);
   }
 
+  private getExposureProfileLabels(): Record<string, string> {
+    const labels: Record<string, string> = { ...EXPOSURE_PROFILE_LABELS };
+    if (this.getCustomExposure().length > 0) {
+      labels[this.CUSTOM_EXPOSURE_KEY] = 'Custom Upload';
+    }
+    return labels;
+  }
+
+  private getCustomExposure(): ExposureAsset[] {
+    try {
+      const raw = localStorage.getItem(this.CUSTOM_EXPOSURE_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as ExposureAsset[];
+    } catch {
+      return [];
+    }
+  }
+
+  private saveCustomExposure(exposures: ExposureAsset[]): void {
+    try {
+      localStorage.setItem(this.CUSTOM_EXPOSURE_STORAGE_KEY, JSON.stringify(exposures));
+    } catch {
+      // ignore localStorage failures
+    }
+  }
+
+  private getActiveExposureProfile(): ExposureAsset[] {
+    if (this.selectedExposureProfileKey === this.CUSTOM_EXPOSURE_KEY) {
+      const custom = this.getCustomExposure();
+      if (custom.length > 0) return custom;
+      this.selectedExposureProfileKey = DEFAULT_EXPOSURE_PROFILE;
+      return EXPOSURE_PROFILES[DEFAULT_EXPOSURE_PROFILE] || [];
+    }
+    return EXPOSURE_PROFILES[this.selectedExposureProfileKey] || [];
+  }
+
+  private downloadExposureTemplate(): void {
+    const template = [
+      'id,name,type,countryIso2,criticality,dependencyWeight',
+      'asset-1,Primary Data Center,datacenter,US,5,5',
+      'asset-2,Regional Supplier,supplier,DE,4,3',
+      'asset-3,Operations Office,office,SG,3,4',
+      'asset-4,Transit Hub,logistics,AE,4,5',
+      'asset-5,Cloud Region,cloud-region,GB,5,4',
+    ].join('\n');
+    this.downloadBlob('worldmonitor-exposure-template.csv', template, 'text/csv');
+  }
+
+  private parseExposureCsv(csv: string): ExposureAsset[] {
+    const lines = csv
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length < 2) return [];
+
+    const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const index = (name: string) => header.indexOf(name);
+    const idIdx = index('id');
+    const nameIdx = index('name');
+    const typeIdx = index('type');
+    const isoIdx = index('countryiso2');
+    const critIdx = index('criticality');
+    const depIdx = index('dependencyweight');
+    if ([idIdx, nameIdx, typeIdx, isoIdx, critIdx, depIdx].some((i) => i < 0)) return [];
+
+    const allowedTypes = new Set<ExposureAsset['type']>(['datacenter', 'supplier', 'office', 'logistics', 'cloud-region']);
+    const assets: ExposureAsset[] = [];
+    for (const row of lines.slice(1)) {
+      const cols = row.split(',').map((c) => c.trim());
+      const type = cols[typeIdx] as ExposureAsset['type'];
+      const iso2 = (cols[isoIdx] || '').toUpperCase();
+      const criticality = Number(cols[critIdx] || 0);
+      const dependencyWeight = Number(cols[depIdx] || 0);
+      if (!cols[idIdx] || !cols[nameIdx] || !allowedTypes.has(type) || !/^[A-Z]{2}$/.test(iso2)) continue;
+      if (!Number.isFinite(criticality) || !Number.isFinite(dependencyWeight)) continue;
+      assets.push({
+        id: cols[idIdx],
+        name: cols[nameIdx],
+        type,
+        countryIso2: iso2,
+        criticality: Math.max(1, Math.min(5, Math.round(criticality))),
+        dependencyWeight: Math.max(1, Math.min(5, Math.round(dependencyWeight))),
+      });
+    }
+    return assets.slice(0, 400);
+  }
+
   unmount(): void {
     if (this.refreshTimer) window.clearInterval(this.refreshTimer);
     if (this.briefTimer) window.clearInterval(this.briefTimer);
@@ -552,5 +684,6 @@ export class Dashboard {
     this.mapView?.destroy();
     this.root.removeEventListener('click', this.onRootClick);
     this.root.removeEventListener('input', this.onRootInput);
+    this.root.removeEventListener('change', this.onRootChange);
   }
 }

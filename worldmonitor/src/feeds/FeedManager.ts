@@ -69,6 +69,22 @@ interface GdacsResponse {
   error?: string;
 }
 
+interface TravelAdvisoryItem {
+  id: string;
+  title: string;
+  country?: string;
+  iso2?: string;
+  level?: number;
+  updatedAt?: string;
+  link?: string;
+}
+
+interface TravelAdvisoryResponse {
+  items: TravelAdvisoryItem[];
+  total?: number;
+  error?: string;
+}
+
 export interface FeedFetchBundle {
   news: NewsItem[];
   feedHealth: FeedHealthEntry[];
@@ -343,6 +359,65 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
     feedHealth.push({
       id: 'gdacs-alerts',
       name: 'GDACS Alerts',
+      status: 'error',
+      itemCount: 0,
+      error: 'fetch exception',
+      checkedAt: Date.now(),
+    });
+  }
+
+  // Supplemental threat stream: US State Department travel advisories
+  try {
+    const advResp = await fetch('/api/travel-advisories');
+    if (!advResp.ok) {
+      feedHealth.push({
+        id: 'travel-advisories',
+        name: 'US Travel Advisories',
+        status: 'error',
+        itemCount: 0,
+        error: `HTTP ${advResp.status}`,
+        checkedAt: Date.now(),
+      });
+    } else {
+      const advData = (await advResp.json()) as TravelAdvisoryResponse;
+      const advItems = advData.items || [];
+      feedHealth.push({
+        id: 'travel-advisories',
+        name: 'US Travel Advisories',
+        status: advItems.length > 0 ? 'ok' : 'empty',
+        itemCount: advItems.length,
+        error: advData.error,
+        checkedAt: Date.now(),
+      });
+
+      for (const item of advItems.filter((a) => (a.level || 0) >= 3).slice(0, 40)) {
+        const severity = (item.level || 0) >= 4 ? 'critical' : 'high';
+        all.push({
+          id: `adv::${item.id}`,
+          title: item.title,
+          link: item.link,
+          source: 'US Travel Advisories',
+          sourceTier: 1,
+          region: 'global',
+          publishedAt: normalizeDate(item.updatedAt),
+          summary: `Advisory level ${item.level || 'n/a'} for ${item.country || item.iso2 || 'country'}`,
+          synthetic: false,
+          location: item.country ? locateHeadline(item.country) : locateHeadline(item.title),
+          classification: {
+            category: 'political',
+            severity,
+            countries: item.iso2 ? [item.iso2] : [],
+            entities: [],
+            confidence: 0.92,
+            rationale: `travel-advisory-l${item.level || 'na'}`,
+          },
+        });
+      }
+    }
+  } catch {
+    feedHealth.push({
+      id: 'travel-advisories',
+      name: 'US Travel Advisories',
       status: 'error',
       itemCount: 0,
       error: 'fetch exception',

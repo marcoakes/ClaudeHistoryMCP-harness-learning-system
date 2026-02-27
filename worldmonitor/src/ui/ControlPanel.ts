@@ -92,6 +92,14 @@ export function renderControlPanel(
       ${exposureButtons}
     </div>
     <div class="timeline-row">
+      <button type="button" class="window-btn" data-action="download-exposure-template">CSV Template</button>
+      <label class="window-btn">
+        Upload Exposure CSV
+        <input type="file" accept=".csv,text/csv" data-action="upload-exposure-csv" class="file-hidden" />
+      </label>
+      <span class="meta">Active profile: ${exposureProfileLabels[exposureProfileKey] || exposureProfileKey}</span>
+    </div>
+    <div class="timeline-row">
       <button type="button" class="window-btn" data-action="timeline-step" data-direction="back">-30m</button>
       <button type="button" class="window-btn ${playbackRunning ? 'window-btn-active' : ''}" data-action="timeline-play">${playbackRunning ? 'Pause' : 'Play 24h'}</button>
       <button type="button" class="window-btn" data-action="timeline-step" data-direction="forward">+30m</button>

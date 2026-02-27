@@ -1,5 +1,6 @@
 import type { CiiEntry, IncidentRecord, NewsItem, ThreatCategory } from '../types';
 import type { ExposureAsset } from '../../data/exposure-profile';
+import { ADVERSARY_PLAYBOOKS } from '../../data/adversary-playbooks';
 
 export interface ThreatTrajectory {
   id: string;
@@ -31,6 +32,7 @@ export interface ThreatModelOutput {
   exposureAssessments: ExposureAssessment[];
   counterfactual?: CounterfactualResult;
   portfolio?: PortfolioRecommendation;
+  adversaryMoves: AdversaryMove[];
 }
 
 export interface ExposureAssessment {
@@ -60,6 +62,14 @@ export interface PortfolioRecommendation {
   totalLatency: number;
   totalRiskReduction: number;
   rationale: string;
+}
+
+export interface AdversaryMove {
+  actor: string;
+  objective: string;
+  confidence: number;
+  likelyAction: string;
+  targetCountries: string[];
 }
 
 function categoryFromEvents(events: NewsItem[]): ThreatCategory {
@@ -314,5 +324,31 @@ export function runThreatModel(
 
   const portfolio = optimizePortfolio(interventions, portfolioBudget, 3);
 
-  return { trajectories, interventions, exposureAssessments, counterfactual, portfolio };
+  const topExposureCountries = exposureAssessments.slice(0, 3).map((e) => e.iso2);
+  const categoryPressure = new Map<ThreatCategory, number>();
+  for (const t of trajectories) {
+    categoryPressure.set(t.category, (categoryPressure.get(t.category) || 0) + t.confidence);
+  }
+
+  const adversaryMoves: AdversaryMove[] = ADVERSARY_PLAYBOOKS.map((p) => {
+    const categoryScore = p.primaryCategories.reduce((sum, cat) => sum + (categoryPressure.get(cat) || 0), 0);
+    const confidence = Math.max(25, Math.min(95, Math.round(categoryScore / Math.max(1, p.primaryCategories.length) + p.capability * 6)));
+    const likelyAction =
+      p.primaryCategories.includes('cyber')
+        ? 'Probe and exploit high-dependency digital pathways'
+        : p.primaryCategories.includes('conflict')
+        ? 'Escalate localized pressure to force strategic concessions'
+        : 'Leverage blended pressure against critical dependencies';
+    return {
+      actor: p.actor,
+      objective: p.objective,
+      confidence,
+      likelyAction,
+      targetCountries: topExposureCountries,
+    };
+  })
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
+
+  return { trajectories, interventions, exposureAssessments, counterfactual, portfolio, adversaryMoves };
 }
