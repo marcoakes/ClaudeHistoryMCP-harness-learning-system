@@ -1,4 +1,5 @@
 import { FEEDS } from '../../data/feeds';
+import { COUNTRY_BASELINES } from '../../data/countries';
 import { formatISO } from 'date-fns';
 import type { FeedHealthEntry, NewsItem } from '../types';
 import { classifyWithAI } from '../intel/ThreatClassifier';
@@ -85,6 +86,8 @@ interface TravelAdvisoryResponse {
   error?: string;
 }
 
+const ISO2_CODES = new Set(COUNTRY_BASELINES.map((c) => c.iso2));
+
 export interface FeedFetchBundle {
   news: NewsItem[];
   feedHealth: FeedHealthEntry[];
@@ -96,6 +99,21 @@ function normalizeDate(dateText?: string | number): number {
   if (typeof dateText === 'number') return Number.isFinite(dateText) ? dateText : Date.now();
   const t = new Date(dateText).getTime();
   return Number.isFinite(t) ? t : Date.now();
+}
+
+function inferCountries(...values: Array<string | undefined>): string[] {
+  const out = new Set<string>();
+  for (const raw of values) {
+    if (!raw) continue;
+    const text = raw.toUpperCase();
+    const pairs = text.match(/\b[A-Z]{2}\b/g) || [];
+    for (const iso2 of pairs) {
+      if (ISO2_CODES.has(iso2)) out.add(iso2);
+    }
+    const located = locateHeadline(raw);
+    if (located?.country) out.add(located.country);
+  }
+  return [...out];
 }
 
 function idFor(item: { source: string; title: string; link: string }): string {
@@ -141,6 +159,9 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
 
         const classification = await classifyWithAI(title, feed.name, feed.tier);
         const location = locateHeadline(title);
+        const countries = classification.countries?.length
+          ? classification.countries
+          : inferCountries(title, raw.contentSnippet, location?.label, location?.country);
 
         all.push({
           id: idFor({ source: feed.id, title, link }),
@@ -153,7 +174,7 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           summary: raw.contentSnippet,
           synthetic: false,
           location,
-          classification,
+          classification: { ...classification, countries },
         });
       }
     } catch {
@@ -196,6 +217,7 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
         const title = eq.title?.trim();
         if (!title) continue;
 
+        const inferred = inferCountries(title, eq.place, eq.location ? `${eq.location.lat},${eq.location.lon}` : undefined);
         all.push({
           id: `eq::${eq.id}`,
           title,
@@ -212,7 +234,7 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           classification: {
             category: 'disaster',
             severity: (eq.magnitude || 0) >= 6 ? 'high' : 'medium',
-            countries: [],
+            countries: inferred,
             entities: [],
             confidence: 0.92,
             rationale: `usgs-mag-${eq.magnitude ?? 'na'}`,
@@ -266,6 +288,10 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           ? 'high'
           : 'medium';
 
+        const loc = item.location
+          ? { lat: item.location.lat, lon: item.location.lon, label: item.category || 'EONET Event' }
+          : locateHeadline(title);
+        const inferred = inferCountries(title, item.category, loc?.label, loc?.country);
         all.push({
           id: `eonet::${item.id}`,
           title,
@@ -276,13 +302,11 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           publishedAt: normalizeDate(item.publishedAt),
           summary: `EONET category: ${item.category || 'Event'}`,
           synthetic: false,
-          location: item.location
-            ? { lat: item.location.lat, lon: item.location.lon, label: item.category || 'EONET Event' }
-            : locateHeadline(title),
+          location: loc,
           classification: {
             category,
             severity,
-            countries: [],
+            countries: inferred,
             entities: [],
             confidence: 0.88,
             rationale: `eonet-${item.category || 'event'}`,
@@ -331,6 +355,10 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
         const titleLower = title.toLowerCase();
         const severity = titleLower.includes('red') ? 'critical' : titleLower.includes('orange') ? 'high' : 'medium';
 
+        const loc = item.location
+          ? { lat: item.location.lat, lon: item.location.lon, label: 'GDACS Alert' }
+          : locateHeadline(title);
+        const inferred = inferCountries(title, item.summary, loc?.label, loc?.country);
         all.push({
           id: `gdacs::${item.id}`,
           title,
@@ -341,13 +369,11 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           publishedAt: normalizeDate(item.publishedAt),
           summary: item.summary || 'GDACS disaster alert',
           synthetic: false,
-          location: item.location
-            ? { lat: item.location.lat, lon: item.location.lon, label: 'GDACS Alert' }
-            : locateHeadline(title),
+          location: loc,
           classification: {
             category: 'disaster',
             severity,
-            countries: [],
+            countries: inferred,
             entities: [],
             confidence: 0.9,
             rationale: 'gdacs-rss',
@@ -392,6 +418,7 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
 
       for (const item of advItems.filter((a) => (a.level || 0) >= 3).slice(0, 40)) {
         const severity = (item.level || 0) >= 4 ? 'critical' : 'high';
+        const inferred = inferCountries(item.title, item.country, item.iso2);
         all.push({
           id: `adv::${item.id}`,
           title: item.title,
@@ -406,7 +433,7 @@ export async function fetchNewsBundle(limitPerFeed = 8): Promise<FeedFetchBundle
           classification: {
             category: 'political',
             severity,
-            countries: item.iso2 ? [item.iso2] : [],
+            countries: item.iso2 ? [item.iso2, ...inferred.filter((c) => c !== item.iso2)] : inferred,
             entities: [],
             confidence: 0.92,
             rationale: `travel-advisory-l${item.level || 'na'}`,

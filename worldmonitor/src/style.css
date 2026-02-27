@@ -57,7 +57,7 @@ body,
 
 .side-column {
   display: grid;
-  grid-auto-rows: minmax(120px, auto);
+  grid-auto-rows: minmax(84px, auto);
   gap: 10px;
   min-height: 0;
 }
@@ -496,6 +496,23 @@ ul {
   gap: 10px;
   max-height: 100%;
   overflow: auto;
+}
+
+.video-card {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.video-card a {
+  color: #bfdbfe;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.video-card a:hover {
+  text-decoration: underline;
 }
 
 .video-card iframe {

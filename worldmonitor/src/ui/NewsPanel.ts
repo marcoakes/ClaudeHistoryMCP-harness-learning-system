@@ -21,5 +21,5 @@ export function renderNewsPanel(el: HTMLElement, items: NewsItem[]): void {
     ? '<div class="notice-banner">Fallback data active: one or more live feeds are unavailable.</div>'
     : '';
 
-  el.innerHTML = `<h3>Live News Feed</h3>${fallbackBanner}<ul>${rows.join('')}</ul>`;
+  el.innerHTML = `<h3>Live News Feed</h3>${fallbackBanner}<ul>${rows.join('') || '<li>No news events available yet.</li>'}</ul>`;
 }
