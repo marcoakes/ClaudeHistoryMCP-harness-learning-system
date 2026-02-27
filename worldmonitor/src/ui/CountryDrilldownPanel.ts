@@ -11,7 +11,8 @@ export function renderCountryDrilldown(
   cii: CiiEntry[],
   news: NewsItem[],
   iso2?: string,
-  windowHours = 6
+  windowHours = 6,
+  referenceNow = Date.now()
 ): void {
   const target = iso2 ? cii.find((c) => c.iso2 === iso2) : cii[0];
   if (!target) {
@@ -19,7 +20,7 @@ export function renderCountryDrilldown(
     return;
   }
 
-  const windowStart = Date.now() - windowHours * 60 * 60 * 1000;
+  const windowStart = referenceNow - windowHours * 60 * 60 * 1000;
   const countryNews = news
     .filter((n) => (n.classification.countries || []).includes(target.iso2))
     .filter((n) => n.publishedAt >= windowStart)

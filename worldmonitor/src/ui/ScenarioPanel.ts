@@ -7,8 +7,7 @@ interface ScenarioCard {
   priority: 'high' | 'medium';
 }
 
-function generateScenarios(news: NewsItem[], windowHours: number): ScenarioCard[] {
-  const now = Date.now();
+function generateScenarios(news: NewsItem[], windowHours: number, now = Date.now()): ScenarioCard[] {
   const windowStart = now - windowHours * 60 * 60 * 1000;
   const recent = news.filter((n) => n.publishedAt >= windowStart);
   const byCategory = aggregateSignals(recent).slice(0, 3);
@@ -39,8 +38,8 @@ function generateScenarios(news: NewsItem[], windowHours: number): ScenarioCard[
   return cards.slice(0, 3);
 }
 
-export function renderScenarioPanel(el: HTMLElement, news: NewsItem[], windowHours = 6): void {
-  const cards = generateScenarios(news, windowHours);
+export function renderScenarioPanel(el: HTMLElement, news: NewsItem[], windowHours = 6, referenceNow = Date.now()): void {
+  const cards = generateScenarios(news, windowHours, referenceNow);
   const rows = cards
     .map(
       (c) => `<li class="scenario-card">

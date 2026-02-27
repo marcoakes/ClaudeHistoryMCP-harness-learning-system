@@ -1,7 +1,6 @@
 import type { CiiEntry, NewsItem } from '../types';
 
-function computeRuleStatus(cii: CiiEntry[], news: NewsItem[], windowHours: number): Array<{ name: string; hit: boolean; detail: string }> {
-  const now = Date.now();
+function computeRuleStatus(cii: CiiEntry[], news: NewsItem[], windowHours: number, now: number): Array<{ name: string; hit: boolean; detail: string }> {
   const windowStart = now - windowHours * 60 * 60 * 1000;
   const recent = news.filter((n) => n.publishedAt >= windowStart);
   const critical = recent.filter((n) => n.classification.severity === 'critical').length;
@@ -33,8 +32,24 @@ function computeRuleStatus(cii: CiiEntry[], news: NewsItem[], windowHours: numbe
   ];
 }
 
-export function renderControlPanel(el: HTMLElement, cii: CiiEntry[], news: NewsItem[], windowHours: number): void {
-  const rules = computeRuleStatus(cii, news, windowHours);
+function relativeLabel(referenceNow: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - referenceNow) / 60000));
+  if (mins === 0) return 'Now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.round(mins / 60)}h ago`;
+}
+
+export function renderControlPanel(
+  el: HTMLElement,
+  cii: CiiEntry[],
+  news: NewsItem[],
+  windowHours: number,
+  referenceNow: number,
+  playbackMinutesAgo: number,
+  playbackRunning: boolean,
+  watchlist: string[]
+): void {
+  const rules = computeRuleStatus(cii, news, windowHours, referenceNow);
   const triggered = rules.filter((r) => r.hit).length;
 
   const buttons = [1, 6, 24]
@@ -51,6 +66,11 @@ export function renderControlPanel(el: HTMLElement, cii: CiiEntry[], news: NewsI
     )
     .join('');
 
+  const watchNames = watchlist
+    .map((iso2) => cii.find((c) => c.iso2 === iso2)?.country || iso2)
+    .slice(0, 8);
+  const watchPills = watchNames.map((w) => `<span class="chip">${w}</span>`).join('');
+
   el.innerHTML = `
     <div class="panel-title-row">
       <h3>Command Bar</h3>
@@ -59,6 +79,14 @@ export function renderControlPanel(el: HTMLElement, cii: CiiEntry[], news: NewsI
     <div class="window-row">
       ${buttons}
     </div>
+    <div class="timeline-row">
+      <button type="button" class="window-btn" data-action="timeline-step" data-direction="back">-30m</button>
+      <button type="button" class="window-btn ${playbackRunning ? 'window-btn-active' : ''}" data-action="timeline-play">${playbackRunning ? 'Pause' : 'Play 24h'}</button>
+      <button type="button" class="window-btn" data-action="timeline-step" data-direction="forward">+30m</button>
+      <span class="meta">Cursor: ${relativeLabel(referenceNow)}</span>
+    </div>
+    <input type="range" min="0" max="48" step="1" value="${Math.round(playbackMinutesAgo / 30)}" data-action="set-playback" class="timeline-slider" />
+    <div class="meta">Watchlist (${watchNames.length}): ${watchPills || 'none'}</div>
     <ul>${rows}</ul>
   `;
 }

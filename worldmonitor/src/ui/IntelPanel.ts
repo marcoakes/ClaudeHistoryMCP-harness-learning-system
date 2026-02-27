@@ -7,9 +7,11 @@ export function renderIntelPanel(
   cii: CiiEntry[],
   news: NewsItem[],
   selectedIso2?: string,
-  windowHours = 6
+  windowHours = 6,
+  referenceNow = Date.now(),
+  watchlist: string[] = []
 ): void {
-  const now = Date.now();
+  const now = referenceNow;
   const half = Math.max(1, Math.floor(windowHours / 2));
   const w1Start = now - half * 60 * 60 * 1000;
   const w0Start = now - half * 2 * 60 * 60 * 1000;
@@ -36,7 +38,14 @@ export function renderIntelPanel(
     }
   }
 
-  const ciiRows = cii
+  const sortedCii = [...cii].sort((a, b) => {
+    const aw = watchlist.includes(a.iso2) ? 1 : 0;
+    const bw = watchlist.includes(b.iso2) ? 1 : 0;
+    if (aw !== bw) return bw - aw;
+    return b.score - a.score;
+  });
+
+  const ciiRows = sortedCii
     .map((c) => {
       const v = velocity.get(c.iso2) || { prev: 0, curr: 0 };
       const delta = v.curr - v.prev;
@@ -51,8 +60,10 @@ export function renderIntelPanel(
           : ' <span class="escalation-badge escalation-watch">Watch</span>'
         : '';
       const selectedClass = selectedIso2 === c.iso2 ? ' cii-row-selected' : '';
+      const watched = watchlist.includes(c.iso2);
       return `<tr>
         <td>
+          <button class="watch-toggle-btn ${watched ? 'watch-on' : ''}" data-action="toggle-watch" data-country="${c.iso2}" title="Toggle watchlist">${watched ? '★' : '☆'}</button>
           <button class="cii-country-btn${selectedClass}" data-action="country-drilldown" data-country="${c.iso2}">
             ${c.country}${badge}
           </button>

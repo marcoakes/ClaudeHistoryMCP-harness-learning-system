@@ -301,6 +301,19 @@ body,
   margin: 8px 0 10px;
 }
 
+.timeline-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.timeline-slider {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .window-btn {
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(30, 41, 59, 0.45);
@@ -330,6 +343,18 @@ body,
   width: 8px;
   height: 8px;
   border-radius: 999px;
+}
+
+.watch-toggle-btn {
+  all: unset;
+  cursor: pointer;
+  color: #fcd34d;
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+.watch-toggle-btn.watch-on {
+  color: #f59e0b;
 }
 
 .rule-hit {
