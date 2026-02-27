@@ -15,6 +15,7 @@ import { renderScenarioPanel } from './ScenarioPanel';
 import { renderCountryDrilldown } from './CountryDrilldownPanel';
 import { renderControlPanel } from './ControlPanel';
 import { renderRedTeamPanel } from './RedTeamPanel';
+import { getHypothesisSnapshot, renderHypothesisPanel } from './HypothesisPanel';
 import type { NewsItem } from '../types';
 
 export class Dashboard {
@@ -107,6 +108,7 @@ export class Dashboard {
           <section id="critical" class="panel panel-scroll"></section>
           <section id="scenario" class="panel panel-scroll"></section>
           <section id="redteam" class="panel panel-scroll"></section>
+          <section id="hypothesis" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
           <section id="drilldown" class="panel panel-scroll"></section>
@@ -190,6 +192,7 @@ export class Dashboard {
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, snapshotNews, windowHours, referenceNow);
     renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, snapshotNews, windowHours, referenceNow);
     renderRedTeamPanel(this.root.querySelector<HTMLElement>('#redteam')!, cii, snapshotNews, windowHours, referenceNow);
+    renderHypothesisPanel(this.root.querySelector<HTMLElement>('#hypothesis')!, cii, snapshotNews, windowHours, referenceNow);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, snapshotNews);
     renderIntelPanel(
       this.root.querySelector<HTMLElement>('#intel')!,
@@ -257,6 +260,7 @@ export class Dashboard {
 
   private exportSnapshot(format: 'json' | 'md'): void {
     const { snapshotNews, cii, referenceNow, windowHours } = this.getSnapshotData();
+    const hypotheses = getHypothesisSnapshot(cii, snapshotNews, windowHours, referenceNow);
     const ts = new Date(referenceNow).toISOString().replace(/[:.]/g, '-');
     const baseName = `worldmonitor-snapshot-${windowHours}h-${ts}`;
 
@@ -266,6 +270,7 @@ export class Dashboard {
         referenceNow: new Date(referenceNow).toISOString(),
         windowHours,
         topCountries: cii.slice(0, 15),
+        hypotheses,
         events: snapshotNews.slice(0, 120).map((n) => ({
           title: n.title,
           source: n.source,
@@ -291,6 +296,12 @@ export class Dashboard {
       '',
       '## Top Country Instability',
       ...top.map((c, i) => `${i + 1}. ${c.country} — score ${c.score}, Δ24h ${c.delta24h >= 0 ? '+' : ''}${c.delta24h}`),
+      '',
+      '## Hypotheses',
+      ...hypotheses.map(
+        (h, i) =>
+          `${i + 1}. ${h.title} [${h.state}] — Likelihood ${h.likelihood}, Impact ${h.impact}, Confidence ${h.confidence}. ${h.statement}`
+      ),
       '',
       '## Priority Events',
       ...events.map(
