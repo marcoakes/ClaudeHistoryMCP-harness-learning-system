@@ -2,11 +2,13 @@ import type { CiiEntry, NewsItem } from '../types';
 import { aggregateSignals } from '../intel/SignalAggregator';
 import { detectFocalPoints } from '../intel/FocalPoints';
 
-export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsItem[]): void {
+export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsItem[], selectedIso2?: string): void {
   const now = Date.now();
   const w1Start = now - 3 * 60 * 60 * 1000;
   const w0Start = now - 6 * 60 * 60 * 1000;
   const velocity = new Map<string, { prev: number; curr: number }>();
+  const sourceSetByCountry = new Map<string, Set<string>>();
+  const highByCountry = new Map<string, number>();
 
   for (const item of news) {
     const countries = item.classification.countries || [];
@@ -16,6 +18,14 @@ export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsIte
       if (item.publishedAt >= w1Start) current.curr += 1;
       else if (item.publishedAt >= w0Start) current.prev += 1;
       velocity.set(iso2, current);
+
+      const sources = sourceSetByCountry.get(iso2) || new Set<string>();
+      sources.add(item.source);
+      sourceSetByCountry.set(iso2, sources);
+
+      if (item.classification.severity === 'high' || item.classification.severity === 'critical') {
+        highByCountry.set(iso2, (highByCountry.get(iso2) || 0) + 1);
+      }
     }
   }
 
@@ -23,12 +33,23 @@ export function renderIntelPanel(el: HTMLElement, cii: CiiEntry[], news: NewsIte
     .map((c) => {
       const v = velocity.get(c.iso2) || { prev: 0, curr: 0 };
       const delta = v.curr - v.prev;
+      const corroborated = (sourceSetByCountry.get(c.iso2)?.size || 0) >= 2 && (highByCountry.get(c.iso2) || 0) >= 2;
       const escalated = c.score >= 60 && c.delta24h >= 3 && delta >= 2 && v.curr >= 2;
       const max = Math.max(1, v.prev, v.curr);
       const prevW = Math.max(8, Math.round((v.prev / max) * 50));
       const currW = Math.max(8, Math.round((v.curr / max) * 50));
+      const badge = escalated
+        ? corroborated
+          ? ' <span class="escalation-badge escalation-verified">Escalating</span>'
+          : ' <span class="escalation-badge escalation-watch">Watch</span>'
+        : '';
+      const selectedClass = selectedIso2 === c.iso2 ? ' cii-row-selected' : '';
       return `<tr>
-        <td>${c.country}${escalated ? ' <span class="escalation-badge">Escalating</span>' : ''}</td>
+        <td>
+          <button class="cii-country-btn${selectedClass}" data-action="country-drilldown" data-country="${c.iso2}">
+            ${c.country}${badge}
+          </button>
+        </td>
         <td>${c.score}</td>
         <td>${c.delta24h >= 0 ? '+' : ''}${c.delta24h}</td>
         <td>

@@ -57,7 +57,7 @@ body,
 
 .side-column {
   display: grid;
-  grid-template-rows: minmax(120px, 16vh) minmax(120px, 16vh) auto auto minmax(170px, 24vh) minmax(220px, 1fr) minmax(160px, 24vh);
+  grid-template-rows: minmax(120px, 15vh) minmax(120px, 15vh) auto minmax(130px, 18vh) minmax(160px, 22vh) minmax(220px, 1fr) minmax(150px, 22vh) minmax(150px, 22vh);
   gap: 10px;
   min-height: 0;
 }
@@ -144,6 +144,31 @@ body,
   color: #fee2e2;
   border: 1px solid rgba(248, 113, 113, 0.45);
   background: rgba(185, 28, 28, 0.28);
+}
+
+.escalation-verified {
+  background: rgba(185, 28, 28, 0.28);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.escalation-watch {
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(120, 53, 15, 0.3);
+}
+
+.cii-country-btn {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+}
+
+.cii-country-btn:hover {
+  text-decoration: underline;
+}
+
+.cii-row-selected {
+  color: #bfdbfe;
 }
 
 .scenario-card {

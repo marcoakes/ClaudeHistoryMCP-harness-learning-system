@@ -12,12 +12,14 @@ import { renderVideoPanel } from './VideoPanel';
 import { renderFeedHealthPanel } from './FeedHealthPanel';
 import { renderCriticalRail } from './CriticalRail';
 import { renderScenarioPanel } from './ScenarioPanel';
+import { renderCountryDrilldown } from './CountryDrilldownPanel';
 
 export class Dashboard {
   private mapView?: MapView;
   private refreshTimer?: number;
   private briefTimer?: number;
   private root: HTMLElement;
+  private selectedCountryIso2?: string;
   private onRootClick = (event: Event): void => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
@@ -25,6 +27,15 @@ export class Dashboard {
     if (!actionEl) return;
     if (actionEl.dataset.action === 'retry-feeds') {
       this.refreshAll();
+      return;
+    }
+    if (actionEl.dataset.action === 'country-drilldown') {
+      const iso2 = actionEl.dataset.country;
+      if (!iso2) return;
+      this.selectedCountryIso2 = iso2;
+      const state = appStore.getState();
+      renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, state.cii, state.news, this.selectedCountryIso2);
+      renderCountryDrilldown(this.root.querySelector<HTMLElement>('#drilldown')!, state.cii, state.news, this.selectedCountryIso2);
     }
   };
 
@@ -44,6 +55,7 @@ export class Dashboard {
           <section id="scenario" class="panel panel-scroll"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
+          <section id="drilldown" class="panel panel-scroll"></section>
           <section id="health" class="panel"></section>
           <section id="news" class="panel panel-scroll"></section>
           <section id="videos" class="panel"></section>
@@ -78,13 +90,17 @@ export class Dashboard {
     appStore.getState().setFeedHealth(feedHealth);
     appStore.getState().setLastRefresh(Date.now());
     appStore.getState().setLoading(false);
+    if (!this.selectedCountryIso2 && cii.length > 0) {
+      this.selectedCountryIso2 = cii[0].iso2;
+    }
 
     this.mapView?.setEvents(news);
 
     renderCriticalRail(this.root.querySelector<HTMLElement>('#critical')!, news);
     renderScenarioPanel(this.root.querySelector<HTMLElement>('#scenario')!, news);
     renderNewsPanel(this.root.querySelector<HTMLElement>('#news')!, news);
-    renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news);
+    renderIntelPanel(this.root.querySelector<HTMLElement>('#intel')!, cii, news, this.selectedCountryIso2);
+    renderCountryDrilldown(this.root.querySelector<HTMLElement>('#drilldown')!, cii, news, this.selectedCountryIso2);
     renderFeedHealthPanel(this.root.querySelector<HTMLElement>('#health')!, feedHealth, fallbackActive);
     renderStatusBar(this.root.querySelector<HTMLElement>('#status')!, appStore.getState().lastRefresh);
 
