@@ -206,23 +206,30 @@ export class Dashboard {
         </div>
         <div class="side-column">
           <section id="controls" class="panel"></section>
-          <section id="critical" class="panel panel-scroll"></section>
-          <section id="scenario" class="panel panel-scroll"></section>
-          <section id="redteam" class="panel panel-scroll"></section>
-          <section id="hypothesis" class="panel panel-scroll"></section>
-          <section id="incidents" class="panel panel-scroll"></section>
-          <section id="trajectory" class="panel panel-scroll"></section>
-          <section id="interventions" class="panel panel-scroll"></section>
-          <section id="portfolio" class="panel"></section>
-          <section id="counterfactual" class="panel"></section>
-          <section id="exposure" class="panel"></section>
-          <section id="adversary" class="panel"></section>
           <section id="brief" class="panel"></section>
           <section id="intel" class="panel"></section>
-          <section id="drilldown" class="panel panel-scroll"></section>
+          <section id="critical" class="panel"></section>
+          <section id="news" class="panel"></section>
+          <section id="drilldown" class="panel"></section>
           <section id="health" class="panel"></section>
-          <section id="news" class="panel panel-scroll"></section>
           <section id="videos" class="panel"></section>
+          <section id="lab" class="panel lab-panel">
+            <details>
+              <summary>Modeling Lab (Advanced)</summary>
+              <div class="lab-stack">
+                <div id="portfolio" class="lab-card"></div>
+                <div id="counterfactual" class="lab-card"></div>
+                <div id="exposure" class="lab-card"></div>
+                <div id="adversary" class="lab-card"></div>
+                <div id="trajectory" class="lab-card"></div>
+                <div id="interventions" class="lab-card"></div>
+                <div id="scenario" class="lab-card"></div>
+                <div id="redteam" class="lab-card"></div>
+                <div id="hypothesis" class="lab-card"></div>
+                <div id="incidents" class="lab-card"></div>
+              </div>
+            </details>
+          </section>
         </div>
       </div>
     `;
